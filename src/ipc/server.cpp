@@ -437,13 +437,41 @@ namespace IPC {
 	void Server::getVisibleMeshesCoarse() {
 		auto& params = m_ipcParameters->params.meshParams;
 		auto& vec = getVec<RenderMesh>(params.visibleSet);
-		DistantLandShare::getVisibleMeshesCoarse(vec, params.viewFrustum, params.sort, params.setFlags);
+
+		IDirect3DDevice9Ex* device = nullptr;
+		IDirect3DQuery9* query = nullptr;
+		if (params.withOcclusion && m_hasOcclusion) {
+			m_effect->BeginPass(1);
+			m_device->SetFVF(D3DFVF_XYZW);
+			m_device->SetIndices(m_occlusionIndexes);
+
+			device = m_device;
+			query = m_occlusionQuery;
+		}
+		DistantLandShare::getVisibleMeshesCoarse(vec, params.viewFrustum, params.sort, params.setFlags, device, query);
+		if (params.withOcclusion && m_hasOcclusion) {
+			m_effect->EndPass();
+		}
 	}
 
 	void Server::getVisibleMeshes() {
 		auto& params = m_ipcParameters->params.meshParams;
 		auto& vec = getVec<RenderMesh>(params.visibleSet);
-		DistantLandShare::getVisibleMeshes(vec, params.viewFrustum, params.viewSphere, params.sort, params.setFlags);
+
+		IDirect3DDevice9Ex* device = nullptr;
+		IDirect3DQuery9* query = nullptr;
+		if (params.withOcclusion && m_hasOcclusion) {
+			m_effect->BeginPass(1);
+			m_device->SetFVF(D3DFVF_XYZW);
+			m_device->SetIndices(m_occlusionIndexes);
+
+			device = m_device;
+			query = m_occlusionQuery;
+		}
+		DistantLandShare::getVisibleMeshes(vec, params.viewFrustum, params.viewSphere, params.sort, params.setFlags, device, query);
+		if (params.withOcclusion && m_hasOcclusion) {
+			m_effect->EndPass();
+		}
 	}
 
 	void Server::sortVisibleSet() {
@@ -488,6 +516,7 @@ namespace IPC {
 		HRESULT hr;
 
 		if (m_hasOcclusion) {
+			m_effect->End();
 			m_device->EndScene();
 			m_hasOcclusion = false;
 		}
@@ -527,7 +556,7 @@ namespace IPC {
 		occluders.RenderServer(m_device, SIZEOFLANDVERT, DistantLandShare::landscapeBufferMap);
 
 		m_effect->EndPass();
-		m_effect->End();
+		/*m_effect->End();
 
 		if (++counter % 1000 == 0) {
 			// save a sample
@@ -535,7 +564,7 @@ namespace IPC {
 			D3DXSaveSurfaceToFileA("occlusion.bmp", D3DXIFF_BMP, m_occlusionSurface, NULL, NULL);
 
 			return true;
-		}
+		}*/
 
 		m_hasOcclusion = true;
 		return true;

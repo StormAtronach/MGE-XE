@@ -239,7 +239,7 @@ namespace IPC {
 		return params.cellFound;
 	}
 
-	bool Client::getVisibleMeshesCoarse(VecId visibleSet, const ViewFrustum& viewFrustum, DWORD setFlags, VisibleSetSort sort) {
+	bool Client::getVisibleMeshesCoarse(VecId visibleSet, const ViewFrustum& viewFrustum, DWORD setFlags, VisibleSetSort sort, bool withOcclusion) {
 		WAIT_FOR_PREVIOUS_COMMAND;
 
 		auto& params = m_ipcParameters->params.meshParams;
@@ -247,10 +247,11 @@ namespace IPC {
 		params.viewFrustum = viewFrustum;
 		params.sort = sort;
 		params.setFlags = setFlags;
+		params.withOcclusion = withOcclusion;
 		return beginRpc(Command::GetVisibleMeshesCoarse);
 	}
 
-	bool Client::getVisibleMeshes(VecId visibleSet, const ViewFrustum& viewFrustum, const D3DXVECTOR4& viewSphere, DWORD setFlags, VisibleSetSort sort) {
+	bool Client::getVisibleMeshes(VecId visibleSet, const ViewFrustum& viewFrustum, const D3DXVECTOR4& viewSphere, DWORD setFlags, VisibleSetSort sort, bool withOcclusion) {
 		WAIT_FOR_PREVIOUS_COMMAND;
 
 		auto& params = m_ipcParameters->params.meshParams;
@@ -259,6 +260,7 @@ namespace IPC {
 		params.viewSphere = viewSphere;
 		params.sort = sort;
 		params.setFlags = setFlags;
+		params.withOcclusion = withOcclusion;
 		return beginRpc(Command::GetVisibleMeshes);
 	}
 

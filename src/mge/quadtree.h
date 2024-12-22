@@ -237,7 +237,16 @@ struct QuadTreeNode {
     ~QuadTreeNode();
 
     template<class T>
-    void GetVisibleMeshes(const ViewFrustum& frustum, const D3DXVECTOR4& viewsphere, VisibleSet<T>& visible_set, bool inside = false) {
+    void GetVisibleMeshes(const ViewFrustum& frustum, const D3DXVECTOR4& viewsphere, VisibleSet<T>& visible_set, bool inside = false, IDirect3DDevice9Ex* device = nullptr, IDirect3DQuery9* query = nullptr) {
+        HRESULT hr;
+
+        if (query != nullptr && meshes.size() > 0) {
+            hr = query->Issue(D3DISSUE_BEGIN);
+            hr = device->SetStreamSource(0, box_verts, 0, 4 * 4);
+            hr = device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 8, 0, 12);
+            hr = query->Issue(D3DISSUE_END);
+        }
+
         // Check if this node is fully outside the frustum.
         // If inside = true then that means it has already been determined that this entire branch is visible
         if (inside == false) {
@@ -251,18 +260,27 @@ struct QuadTreeNode {
             }
         }
 
+        if (query != nullptr && meshes.size() > 0) {
+            DWORD pixelsVisible = 0;
+
+            while (query->GetData(&pixelsVisible, sizeof(DWORD), D3DGETDATA_FLUSH) == S_FALSE);
+
+            if (pixelsVisible == 0)
+                return;
+        }
+
         // If this node has children, check them
         if (children[0]) {
-            children[0]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside);
+            children[0]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside, device, query);
         }
         if (children[1]) {
-            children[1]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside);
+            children[1]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside, device, query);
         }
         if (children[2]) {
-            children[2]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside);
+            children[2]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside, device, query);
         }
         if (children[3]) {
-            children[3]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside);
+            children[3]->GetVisibleMeshes(frustum, viewsphere, visible_set, inside, device, query); 
         }
         if (meshes.empty()) {
             return;
@@ -302,7 +320,16 @@ struct QuadTreeNode {
     }
 
     template<class T>
-    void GetVisibleMeshesCoarse(const ViewFrustum& frustum, VisibleSet<T>& visible_set, bool inside = false) {
+    void GetVisibleMeshesCoarse(const ViewFrustum& frustum, VisibleSet<T>& visible_set, bool inside = false, IDirect3DDevice9Ex* device = nullptr, IDirect3DQuery9* query = nullptr) {
+        HRESULT hr;
+
+        if (query != nullptr && meshes.size() > 0) {
+            hr = query->Issue(D3DISSUE_BEGIN);
+            hr = device->SetStreamSource(0, box_verts, 0, 4 * 4);
+            hr = device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 8, 0, 12);
+            hr = query->Issue(D3DISSUE_END);
+        }
+
         // Check if this node is fully outside the frustum.
         // If inside = true then that means it has already been determined that this entire branch is visible
         if (inside == false) {
@@ -316,18 +343,27 @@ struct QuadTreeNode {
             }
         }
 
+        if (query != nullptr && meshes.size() > 0) {
+            DWORD pixelsVisible = 0;
+
+            while (query->GetData(&pixelsVisible, sizeof(DWORD), D3DGETDATA_FLUSH) == S_FALSE);
+
+            if (pixelsVisible == 0)
+                return;
+        }
+
         // If this node has children, check them
         if (children[0]) {
-            children[0]->GetVisibleMeshesCoarse(frustum, visible_set, inside);
+            children[0]->GetVisibleMeshesCoarse(frustum, visible_set, inside, device, query);
         }
         if (children[1]) {
-            children[1]->GetVisibleMeshesCoarse(frustum, visible_set, inside);
+            children[1]->GetVisibleMeshesCoarse(frustum, visible_set, inside, device, query);
         }
         if (children[2]) {
-            children[2]->GetVisibleMeshesCoarse(frustum, visible_set, inside);
+            children[2]->GetVisibleMeshesCoarse(frustum, visible_set, inside, device, query);
         }
         if (children[3]) {
-            children[3]->GetVisibleMeshesCoarse(frustum, visible_set, inside);
+            children[3]->GetVisibleMeshesCoarse(frustum, visible_set, inside, device, query);
         }
         if (meshes.empty()) {
             return;
@@ -379,12 +415,12 @@ public:
     bool Optimize();
     void Clear();
     template<class T>
-    void GetVisibleMeshes(const ViewFrustum& frustum, const D3DXVECTOR4& viewsphere, VisibleSet<T>& visible_set) {
-        m_root_node->GetVisibleMeshes(frustum, viewsphere, visible_set);
+    void GetVisibleMeshes(const ViewFrustum& frustum, const D3DXVECTOR4& viewsphere, VisibleSet<T>& visible_set, IDirect3DDevice9Ex* device = nullptr, IDirect3DQuery9* query = nullptr) {
+        m_root_node->GetVisibleMeshes(frustum, viewsphere, visible_set, false, device, query);
     }
     template<class T>
-    void GetVisibleMeshesCoarse(const ViewFrustum& frustum, VisibleSet<T>& visible_set) {
-        m_root_node->GetVisibleMeshesCoarse(frustum, visible_set);
+    void GetVisibleMeshesCoarse(const ViewFrustum& frustum, VisibleSet<T>& visible_set, IDirect3DDevice9Ex* device = nullptr, IDirect3DQuery9* query = nullptr) {
+        m_root_node->GetVisibleMeshesCoarse(frustum, visible_set, false, device, query);
     }
     void SetBox(float size, const D3DXVECTOR2& center);
     void CalcVolume();
@@ -412,6 +448,6 @@ protected:
     );
 private:
     // Disallow copy and assignment
-    QuadTree& operator=(QuadTree&);
+    QuadTree& operator=(QuadTree&) = delete;
     QuadTree(QuadTree&);
 };

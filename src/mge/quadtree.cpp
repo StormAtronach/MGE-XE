@@ -256,21 +256,23 @@ BoundingSphere QuadTreeNode::CalcVolume() {
 //-----------------------------------------------------------------------------
 
 bool QuadTreeNode::CreateOcclusionBox(IDirect3DDevice9Ex* device) {
-    constexpr UINT vertexBufferSize = 8 * 3 * 4;
+    constexpr UINT vertexBufferSize = 8 * 4 * 4;
 
-    D3DXVECTOR3 vertices[] = {
-        { -sphere.radius, -sphere.radius, -sphere.radius },
-        {  sphere.radius, -sphere.radius, -sphere.radius },
-        { -sphere.radius,  sphere.radius, -sphere.radius },
-        {  sphere.radius,  sphere.radius, -sphere.radius },
-        { -sphere.radius, -sphere.radius,  sphere.radius },
-        {  sphere.radius, -sphere.radius,  sphere.radius },
-        { -sphere.radius,  sphere.radius,  sphere.radius },
-        {  sphere.radius,  sphere.radius,  sphere.radius },
+    D3DXVECTOR4 vertices[] = {
+        { -sphere.radius, -sphere.radius, -sphere.radius, 1.0 },
+        {  sphere.radius, -sphere.radius, -sphere.radius, 1.0 },
+        { -sphere.radius,  sphere.radius, -sphere.radius, 1.0 },
+        {  sphere.radius,  sphere.radius, -sphere.radius, 1.0 },
+        { -sphere.radius, -sphere.radius,  sphere.radius, 1.0 },
+        {  sphere.radius, -sphere.radius,  sphere.radius, 1.0 },
+        { -sphere.radius,  sphere.radius,  sphere.radius, 1.0 },
+        {  sphere.radius,  sphere.radius,  sphere.radius, 1.0 },
     };
 
+    D3DXVECTOR4 center = { sphere.center.x, sphere.center.y, sphere.center.z, 0.0 };
+
     for (size_t i = 0; i < 8; i++) {
-        vertices[i] += sphere.center;
+        vertices[i] += center;
     }
 
     if (box_verts != nullptr) {
@@ -278,7 +280,7 @@ bool QuadTreeNode::CreateOcclusionBox(IDirect3DDevice9Ex* device) {
         box_verts = nullptr;
     }
 
-    auto hr = device->CreateVertexBuffer(vertexBufferSize, D3DUSAGE_WRITEONLY, D3DFVF_XYZ, D3DPOOL_DEFAULT, &box_verts, NULL);
+    auto hr = device->CreateVertexBuffer(vertexBufferSize, D3DUSAGE_WRITEONLY, D3DFVF_XYZW, D3DPOOL_DEFAULT, &box_verts, NULL);
     if (FAILED(hr)) {
         LOG::logline("Failed to create occlusion vertex buffer: %08X", hr);
         return false;

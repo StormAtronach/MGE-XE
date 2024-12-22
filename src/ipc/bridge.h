@@ -172,6 +172,7 @@ namespace IPC {
         IN ViewFrustum viewFrustum;
         IN DWORD setFlags;
         IN D3DXVECTOR4 viewSphere;
+        IN bool withOcclusion;
     };
 
     struct InitOcclusionParameters {

@@ -208,7 +208,7 @@ bool DistantLandShare::setCurrentWorldSpace(const char* name) {
     return false;
 }
 
-void DistantLandShare::getVisibleMeshesCoarse(IPC::Vec<RenderMesh>& output, const ViewFrustum& viewFrustum, VisibleSetSort sort, DWORD setFlags) {
+void DistantLandShare::getVisibleMeshesCoarse(IPC::Vec<RenderMesh>& output, const ViewFrustum& viewFrustum, VisibleSetSort sort, DWORD setFlags, IDirect3DDevice9Ex* device, IDirect3DQuery9* query) {
     VisibleSet<IpcServerVector> visibleSet((IpcServerVector(output))); // extra parens for vexing parse
 
     // if we're not sorting, we can do parallel reads and writes where the client processes elements as we add them
@@ -217,19 +217,19 @@ void DistantLandShare::getVisibleMeshesCoarse(IPC::Vec<RenderMesh>& output, cons
     }
 
     if (setFlags & VIS_NEAR) {
-        currentWorldSpace->NearStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet);
+        currentWorldSpace->NearStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet, device, query);
     }
     if (setFlags & VIS_FAR) {
-        currentWorldSpace->FarStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet);
+        currentWorldSpace->FarStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet, device, query);
     }
     if (setFlags & VIS_VERY_FAR) {
-        currentWorldSpace->VeryFarStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet);
+        currentWorldSpace->VeryFarStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet, device, query);
     }
     if (setFlags & VIS_GRASS) {
-        currentWorldSpace->GrassStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet);
+        currentWorldSpace->GrassStatics->GetVisibleMeshesCoarse(viewFrustum, visibleSet, device, query);
     }
     if (setFlags & VIS_LAND) {
-        LandQuadTree.GetVisibleMeshesCoarse(viewFrustum, visibleSet);
+        LandQuadTree.GetVisibleMeshesCoarse(viewFrustum, visibleSet, device, query);
     }
 
     switch (sort) {
@@ -245,7 +245,7 @@ void DistantLandShare::getVisibleMeshesCoarse(IPC::Vec<RenderMesh>& output, cons
     }
 }
 
-void DistantLandShare::getVisibleMeshes(IPC::Vec<RenderMesh>& output, const ViewFrustum& viewFrustum, const D3DXVECTOR4& viewSphere, VisibleSetSort sort, DWORD setFlags) {
+void DistantLandShare::getVisibleMeshes(IPC::Vec<RenderMesh>& output, const ViewFrustum& viewFrustum, const D3DXVECTOR4& viewSphere, VisibleSetSort sort, DWORD setFlags, IDirect3DDevice9Ex* device, IDirect3DQuery9* query) {
     VisibleSet<IpcServerVector> visibleSet((IpcServerVector(output))); // extra parens for vexing parse
 
     // if we're not sorting, we can do parallel reads and writes where the client processes elements as we add them
@@ -254,19 +254,19 @@ void DistantLandShare::getVisibleMeshes(IPC::Vec<RenderMesh>& output, const View
     }
 
     if (setFlags & VIS_NEAR) {
-        currentWorldSpace->NearStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet);
+        currentWorldSpace->NearStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet, device, query);
     }
     if (setFlags & VIS_FAR) {
-        currentWorldSpace->FarStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet);
+        currentWorldSpace->FarStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet, device, query);
     }
     if (setFlags & VIS_VERY_FAR) {
-        currentWorldSpace->VeryFarStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet);
+        currentWorldSpace->VeryFarStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet, device, query);
     }
     if (setFlags & VIS_GRASS) {
-        currentWorldSpace->GrassStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet);
+        currentWorldSpace->GrassStatics->GetVisibleMeshes(viewFrustum, viewSphere, visibleSet, device, query);
     }
     if (setFlags & VIS_LAND) {
-        LandQuadTree.GetVisibleMeshes(viewFrustum, viewSphere, visibleSet);
+        LandQuadTree.GetVisibleMeshes(viewFrustum, viewSphere, visibleSet, device, query);
     }
 
     switch (sort) {

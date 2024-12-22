@@ -158,7 +158,7 @@ void DistantLand::cullDistantStatics(const D3DXMATRIX* view, const D3DXMATRIX* p
         ViewFrustum range_frustum(&ds_viewproj);
         viewsphere.w = zf;
         if (Configuration.UseSharedMemory) {
-            ipcClient.getVisibleMeshes(visDistantSharedId, range_frustum, viewsphere, VIS_NEAR);
+            ipcClient.getVisibleMeshes(visDistantSharedId, range_frustum, viewsphere, VIS_NEAR, VisibleSetSort::None, true);
         } else {
             DistantLandShare::currentWorldSpace->NearStatics->GetVisibleMeshes(range_frustum, viewsphere, visDistant);
         }
@@ -171,7 +171,7 @@ void DistantLand::cullDistantStatics(const D3DXMATRIX* view, const D3DXMATRIX* p
         ViewFrustum range_frustum(&ds_viewproj);
         viewsphere.w = zf;
         if (Configuration.UseSharedMemory) {
-            ipcClient.getVisibleMeshes(visDistantSharedId, range_frustum, viewsphere, VIS_FAR);
+            ipcClient.getVisibleMeshes(visDistantSharedId, range_frustum, viewsphere, VIS_FAR, VisibleSetSort::None, true);
         } else {
             DistantLandShare::currentWorldSpace->FarStatics->GetVisibleMeshes(range_frustum, viewsphere, visDistant);
         }
@@ -184,7 +184,7 @@ void DistantLand::cullDistantStatics(const D3DXMATRIX* view, const D3DXMATRIX* p
         ViewFrustum range_frustum(&ds_viewproj);
         viewsphere.w = zf;
         if (Configuration.UseSharedMemory) {
-            ipcClient.getVisibleMeshes(visDistantSharedId, range_frustum, viewsphere, VIS_VERY_FAR);
+            ipcClient.getVisibleMeshes(visDistantSharedId, range_frustum, viewsphere, VIS_VERY_FAR, VisibleSetSort::None, true);
         } else {
             DistantLandShare::currentWorldSpace->VeryFarStatics->GetVisibleMeshes(range_frustum, viewsphere, visDistant);
         }
