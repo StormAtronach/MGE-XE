@@ -21,6 +21,10 @@ struct LandMesh {
     DWORD faces;
     ptr32<IDirect3DVertexBuffer9> vbuffer;
     ptr32<IDirect3DIndexBuffer9> ibuffer;
+#ifdef MGE64_HOST
+    IDirect3DVertexBuffer9* serverVBuffer;
+    IDirect3DIndexBuffer9* serverIBuffer;
+#endif
 };
 
 #pragma pack(push, 4)

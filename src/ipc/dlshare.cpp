@@ -15,6 +15,8 @@ const DistantLandShare::WorldSpace* DistantLandShare::currentWorldSpace = nullpt
 bool DistantLandShare::hasCurrentWorldSpace = false;
 QuadTree DistantLandShare::LandQuadTree;
 vector<vector<QuadTreeMesh*>> DistantLandShare::dynamicVisGroupsServer;
+IDirect3DVertexDeclaration9* DistantLandShare::LandDecl = nullptr;
+std::unordered_map<ptr32<IDirect3DVertexBuffer9>, std::pair<IDirect3DVertexBuffer9*, IDirect3DIndexBuffer9*>> DistantLandShare::landscapeBufferMap;
 
 void DistantLandShare::loadVisGroupsServer(HANDLE h) {
     DWORD unused;
@@ -99,7 +101,13 @@ bool DistantLandShare::initDistantStaticsServer(IPC::Vec<DistantStatic>& distant
     return true;
 }
 
-bool DistantLandShare::initLandscapeServer(IPC::Vec<IPC::LandscapeBuffers>& landscapeBuffers, ptr32<IDirect3DTexture9> texWorldColour) {
+bool DistantLandShare::initLandscapeServer(IPC::Vec<IPC::LandscapeBuffers>& landscapeBuffers, ptr32<IDirect3DTexture9> texWorldColour, IDirect3DDevice9Ex* device) {
+    auto hr = device->CreateVertexDeclaration(LandElem, &DistantLandShare::LandDecl);
+    if (hr != D3D_OK) {
+        LOG::logline("!! Failed to to create world vertex declaration");
+        return false;
+    }
+
     HANDLE file = CreateFile("Data Files\\distantland\\world", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
     if (file == INVALID_HANDLE_VALUE) {
         LOG::winerror("Server failed to open landscape data");
@@ -135,9 +143,19 @@ bool DistantLandShare::initLandscapeServer(IPC::Vec<IPC::LandscapeBuffers>& land
 
             bool large = (i.verts > 0xFFFF || i.faces > 0xFFFF);
 
-            // skip info the client handles
-            auto bufferSize = i.verts * SIZEOFLANDVERT + i.faces * (large ? 12 : 6);
-            SetFilePointer(file, bufferSize, NULL, FILE_CURRENT);
+            IDirect3DVertexBuffer9* vb;
+            IDirect3DIndexBuffer9* ib;
+            void* lockdata;
+
+            device->CreateVertexBuffer(i.verts * SIZEOFLANDVERT, D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &vb, 0);
+            vb->Lock(0, 0, &lockdata, 0);
+            ReadFile(file, lockdata, i.verts * SIZEOFLANDVERT, &unused, 0);
+            vb->Unlock();
+
+            device->CreateIndexBuffer(i.faces * (large ? 12 : 6), D3DUSAGE_WRITEONLY, large ? D3DFMT_INDEX32 : D3DFMT_INDEX16, D3DPOOL_DEFAULT, &ib, 0);
+            ib->Lock(0, 0, &lockdata, 0);
+            ReadFile(file, lockdata, i.faces * (large ? 12 : 6), &unused, 0);
+            ib->Unlock();
 
             auto& buffers = *it;
             if (it.at_end()) {
@@ -149,6 +167,8 @@ bool DistantLandShare::initLandscapeServer(IPC::Vec<IPC::LandscapeBuffers>& land
 
             i.vbuffer = buffers.vb;
             i.ibuffer = buffers.ib;
+            
+            landscapeBufferMap.insert({ i.vbuffer, { vb, ib } });
 
             qtmin.x = std::min(qtmin.x, i.sphere.center.x - i.sphere.radius);
             qtmin.y = std::min(qtmin.y, i.sphere.center.y - i.sphere.radius);

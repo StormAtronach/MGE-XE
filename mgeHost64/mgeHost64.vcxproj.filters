@@ -116,5 +116,8 @@
     <ClInclude Include="..\src\ipc\vecwrap.h">
       <Filter>Header Files\ipc</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\mge\distantshader.h">
+      <Filter>Header Files\mge</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

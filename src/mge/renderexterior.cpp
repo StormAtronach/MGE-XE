@@ -84,7 +84,7 @@ void DistantLand::renderSky() {
     effect->EndPass();
 }
 
-void DistantLand::renderDistantLand(ID3DXEffect* e, const D3DXMATRIX* view, const D3DXMATRIX* proj) {
+void DistantLand::renderDistantLand(ID3DXEffect* e, const D3DXMATRIX* view, const D3DXMATRIX* proj, bool generateOcclusion) {
     D3DXMATRIX world, viewproj = (*view) * (*proj);
     D3DXVECTOR4 viewsphere(eyePos.x, eyePos.y, eyePos.z, Configuration.DL.DrawDist * kCellSize);
 
@@ -110,11 +110,14 @@ void DistantLand::renderDistantLand(ID3DXEffect* e, const D3DXMATRIX* view, cons
         DistantLandShare::LandQuadTree.GetVisibleMeshes(frustum, viewsphere, visLand);
     }
 
-    device->SetVertexDeclaration(LandDecl);
+    device->SetVertexDeclaration(DistantLandShare::LandDecl);
     
     if (Configuration.UseSharedMemory) {
         visLandShared.Render(device, SIZEOFLANDVERT, true);
-        ipcClient.generateOcclusionMask(visLandSharedId, *view, *proj);
+
+        if (generateOcclusion) {
+            ipcClient.generateOcclusionMask(visLandSharedId, effect, eyePos);
+        }
     } else {
         visLand.Render(device, SIZEOFLANDVERT);
     }
@@ -128,7 +131,7 @@ void DistantLand::renderDistantLandZ() {
     effectDepth->CommitChanges();
 
     // Draw with cached vis set
-    device->SetVertexDeclaration(LandDecl);
+    device->SetVertexDeclaration(DistantLandShare::LandDecl);
     if (Configuration.UseSharedMemory) {
         visLandShared.Render(device, SIZEOFLANDVERT);
     } else {

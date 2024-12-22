@@ -1,5 +1,6 @@
 #include "ipc/dlshare.h"
 #include "ipc/server.h"
+#include "mge/distantshader.h"
 #include "support/log.h"
 
 #include <cassert>
@@ -23,11 +24,15 @@ namespace IPC {
 		m_freeVecs(),
 		m_d3d(nullptr),
 		m_device(nullptr),
+		m_effect(nullptr),
+		m_technique(NULL),
+		m_worldParam(NULL),
+		m_viewParam(NULL),
+		m_projParam(NULL),
+		m_eyePosParam(NULL),
 		m_occlusionQuery(nullptr),
 		m_occlusionSurface(nullptr),
-		m_occlusionTexture(nullptr),
 		m_occlusionIndexes(nullptr),
-		m_occlusionRender(nullptr),
 		m_hasOcclusion(false)
 	{ }
 
@@ -37,11 +42,10 @@ namespace IPC {
 			m_ipcParameters = nullptr;
 		}
 
-		CleanupIfc(m_occlusionRender);
 		CleanupIfc(m_occlusionIndexes);
-		CleanupIfc(m_occlusionTexture);
 		CleanupIfc(m_occlusionSurface);
 		CleanupIfc(m_occlusionQuery);
+		CleanupIfc(m_effect);
 		CleanupIfc(m_device);
 		CleanupIfc(m_d3d);
 
@@ -61,6 +65,28 @@ namespace IPC {
 	}
 
 	bool Server::init() {
+		if (m_ipcParameters != nullptr) {
+			UnmapViewOfFile(m_ipcParameters);
+			m_ipcParameters = nullptr;
+		}
+
+		m_ipcParameters = static_cast<Parameters*>(MapViewOfFile(m_sharedMem, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(Parameters)));
+		if (m_ipcParameters == nullptr) {
+			LOG::winerror("Failed to map IPC parameters shared memory");
+			return false;
+		}
+
+		if (!initD3D()) {
+			UnmapViewOfFile(m_ipcParameters);
+			m_ipcParameters = nullptr;
+
+			return false;
+		}
+
+		return true;
+	}
+
+	bool Server::initD3D() {
 		// all occlusion bounding boxes use the same indexes
 		constexpr UINT indexBufferSize = 6 * 6 * 2; // 6 faces with 6 indexes each taking 2 bytes
 		constexpr WORD indexes[] = {
@@ -79,7 +105,7 @@ namespace IPC {
 		};
 
 		WNDCLASSA wndClass = {
-			CS_CLASSDC,
+			CS_CLASSDC | CS_HREDRAW | CS_VREDRAW,
 			DefWindowProcA,
 			0,
 			0,
@@ -95,22 +121,11 @@ namespace IPC {
 		HRESULT hr = S_OK;
 		WORD* indexBuffer = nullptr;
 
-		if (m_ipcParameters != nullptr) {
-			UnmapViewOfFile(m_ipcParameters);
-			m_ipcParameters = nullptr;
-		}
-
-		m_ipcParameters = static_cast<Parameters*>(MapViewOfFile(m_sharedMem, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(Parameters)));
-		if (m_ipcParameters == nullptr) {
-			LOG::winerror("Failed to map IPC parameters shared memory");
-			return false;
-		}
-
 		// initialize D3D for occlusion testing
 		hr = Direct3DCreate9Ex(D3D_SDK_VERSION, &m_d3d);
 		if (FAILED(hr)) {
 			LOG::logline("Failed to create Direct3D object: %08X", hr);
-			goto d3dCreateFailed;
+			return false;
 		}
 
 		// create dummy window
@@ -126,10 +141,12 @@ namespace IPC {
 		}
 
 		presentParams.Windowed = TRUE;
-		presentParams.BackBufferFormat = D3DFMT_UNKNOWN;
+		presentParams.BackBufferFormat = D3DFMT_X8R8G8B8;
 		presentParams.BackBufferWidth = 1;
 		presentParams.BackBufferHeight = 1;
 		presentParams.SwapEffect = D3DSWAPEFFECT_DISCARD;
+		presentParams.EnableAutoDepthStencil = TRUE;
+		presentParams.AutoDepthStencilFormat = D3DFMT_D24S8;
 		hr = m_d3d->CreateDeviceEx(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &presentParams, NULL, &m_device);
 		if (FAILED(hr)) {
 			LOG::logline("Failed to create D3D device: %08X", hr);
@@ -150,7 +167,6 @@ namespace IPC {
 		}
 
 		std::memcpy(indexBuffer, indexes, indexBufferSize);
-
 		m_occlusionIndexes->Unlock();
 
 		hr = m_device->CreateQuery(D3DQUERYTYPE_OCCLUSION, &m_occlusionQuery);
@@ -159,7 +175,11 @@ namespace IPC {
 			goto createQueryFailed;
 		}
 
-		return true;
+		m_device->SetRenderState(D3DRS_LIGHTING, FALSE);
+
+		if (initShaders()) {
+			return true;
+		}
 
 	createQueryFailed:
 	indexBufferWriteFailed:
@@ -173,11 +193,52 @@ namespace IPC {
 		UnregisterClassA("mgeHost64", GetModuleHandleA(NULL));
 	registerClassFailed:
 		CleanupIfc(m_d3d);
-	d3dCreateFailed:
-		UnmapViewOfFile(m_ipcParameters);
-		m_ipcParameters = nullptr;
 
 		return false;
+	}
+
+	bool Server::initShaders() {
+		ID3DXBuffer* errors = nullptr;
+		CoreModInclude includer;
+
+		// LAA probably not necessary for x64? but we'll set it anyway for consistency
+		auto hr = D3DXCreateEffectFromFileA(m_device, "Data Files\\shaders\\core\\XE Occlusion Main.fx", NULL, &includer, D3DXSHADER_OPTIMIZATION_LEVEL3 | D3DXFX_LARGEADDRESSAWARE | D3DXSHADER_DEBUG, NULL, &m_effect, &errors);
+		if (FAILED(hr)) {
+			LOG::logline("Shader compile failed: %08X", hr);
+			if (errors) {
+				LOG::logline("%s", errors->GetBufferPointer());
+				errors->Release();
+			}
+
+			return false;
+		}
+
+		m_technique = m_effect->GetTechniqueByName("Occlusion");
+		if (m_technique == NULL) {
+			LOG::logline("Failed to get shader technique");
+			CleanupIfc(m_effect);
+			return false;
+		}
+
+		hr = m_effect->SetTechnique(m_technique);
+		if (FAILED(hr)) {
+			LOG::logline("Failed to set shader technique: %08X", hr);
+			CleanupIfc(m_effect);
+			return false;
+		}
+
+		m_worldParam = m_effect->GetParameterByName(NULL, "world");
+		m_viewParam = m_effect->GetParameterByName(NULL, "view");
+		m_projParam = m_effect->GetParameterByName(NULL, "proj");
+		m_eyePosParam = m_effect->GetParameterByName(NULL, "eyePos");
+
+		if (m_worldParam == NULL || m_viewParam == NULL || m_projParam == NULL || m_eyePosParam == NULL) {
+			LOG::logline("Failed to get shader parameters");
+			CleanupIfc(m_effect);
+			return false;
+		}
+
+		return true;
 	}
 
 	bool Server::listen() {
@@ -315,26 +376,40 @@ namespace IPC {
 	bool Server::initOcclusion() {
 		constexpr UINT resolutionScale = 4; // quarter-res occlusion
 
+		HRESULT hr;
+
 		auto& params = m_ipcParameters->params.initOcclusionParams;
 		params.success = false;
 
 		auto& displayMode = params.displayMode;
-		auto hr = D3DXCreateTexture(m_device, displayMode.Width / resolutionScale, displayMode.Height / resolutionScale,
-			1, D3DUSAGE_RENDERTARGET, displayMode.Format, D3DPOOL_DEFAULT, &m_occlusionTexture);
+		auto width = displayMode.Width / resolutionScale;
+		auto height = displayMode.Height / resolutionScale;
+
+		// resize back buffer
+		D3DPRESENT_PARAMETERS presentParams = { };
+		presentParams.Windowed = TRUE;
+		presentParams.BackBufferFormat = D3DFMT_X8R8G8B8;
+		presentParams.BackBufferWidth = width;
+		presentParams.BackBufferHeight = height;
+		presentParams.SwapEffect = D3DSWAPEFFECT_DISCARD;
+		presentParams.EnableAutoDepthStencil = TRUE;
+		presentParams.AutoDepthStencilFormat = D3DFMT_D24S8;
+
+		hr = m_device->Reset(&presentParams);
+		if (FAILED(hr)) {
+			LOG::logline("Failed to reset device: %08X", hr);
+			return false;
+		}
+
+		hr = m_device->CreateRenderTarget(width, height, D3DFMT_X8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE, &m_occlusionSurface, NULL);
 		if (FAILED(hr)) {
 			LOG::logline("Failed to create occlusion texture: %08X", hr);
 			return false;
 		}
 
-		D3DSURFACE_DESC desc;
-		m_occlusionTexture->GetSurfaceLevel(0, &m_occlusionSurface);
-		m_occlusionSurface->GetDesc(&desc);
-
-		hr = D3DXCreateRenderToSurface(m_device, desc.Width, desc.Height, desc.Format, TRUE, D3DFMT_D16, &m_occlusionRender);
+		hr = m_device->SetRenderTarget(0, m_occlusionSurface);
 		if (FAILED(hr)) {
-			LOG::logline("Failed to create occlusion render-to-surface: %08X", hr);
-			CleanupIfc(m_occlusionSurface);
-			CleanupIfc(m_occlusionTexture);
+			LOG::logline("Failed to set render target: %08X", hr);
 			return false;
 		}
 
@@ -351,7 +426,7 @@ namespace IPC {
 
 	bool Server::initLandscape() {
 		auto& params = m_ipcParameters->params.initLandscapeParams;
-		return DistantLandShare::initLandscapeServer(getVec<LandscapeBuffers>(params.buffers), params.texWorldColour);
+		return DistantLandShare::initLandscapeServer(getVec<LandscapeBuffers>(params.buffers), params.texWorldColour, m_device);
 	}
 
 	void Server::setWorldSpace() {
@@ -377,22 +452,92 @@ namespace IPC {
 		DistantLandShare::sortVisibleSet(vec, params.sort);
 	}
 
+#define FAIL_RETURN(r, m) if (FAILED(r)) {\
+	LOG::logline(m ": %08X", (r));\
+	return false;\
+}
+
+#define FAIL_DEVEND(r, m) if (FAILED(r)) {\
+	LOG::logline(m ": %08X", (r));\
+	m_device->EndScene();\
+	return false;\
+}
+
+#define FAIL_EFFEND(r, m) if (FAILED(r)) {\
+	LOG::logline(m ": %08X", (r));\
+	m_effect->End();\
+	m_device->EndScene();\
+	return false;\
+}
+
+#define FAIL_PASSEND(r, m) if (FAILED(r)) {\
+	LOG::logline(m ": %08X", (r));\
+	m_effect->EndPass();\
+	m_effect->End();\
+	m_device->EndScene();\
+	return false;\
+}
+
 	bool Server::generateOcclusionMask() {
+		static int counter = 0;
+
+		struct Vertex {
+			float x, y, z, w; // Position
+		};
+
+		HRESULT hr;
+
+		if (m_hasOcclusion) {
+			m_device->EndScene();
+			m_hasOcclusion = false;
+		}
+
 		auto& params = m_ipcParameters->params.occlusionMaskParams;
 		auto& vec = getVec<RenderMesh>(params.visibleSet);
-		
-		auto hr = m_device->SetTransform(D3DTS_VIEW, &params.view);
-		if (FAILED(hr)) {
-			LOG::logline("Failed to set view matrix: %08X", hr);
-			return false;
+
+		hr = m_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 255, 0), 1.0f, 0);
+		FAIL_RETURN(hr, "Failed to clear occlusion surface");
+
+		hr = m_device->BeginScene();
+		FAIL_RETURN(hr, "Failed to begin scene");
+
+		hr = m_effect->SetMatrix(m_worldParam, &params.world);
+		FAIL_DEVEND(hr, "Failed to set world matrix");
+
+		hr = m_effect->SetMatrix(m_viewParam, &params.view);
+		FAIL_DEVEND(hr, "Failed to set view matrix");
+
+		hr = m_effect->SetMatrix(m_projParam, &params.proj);
+		FAIL_DEVEND(hr, "Failed to set projection matrix");
+
+		hr = m_effect->SetFloatArray(m_eyePosParam, params.eyePos, 3);
+		FAIL_DEVEND(hr, "Failed to set eye position");
+
+		UINT numPasses;
+		hr = m_effect->Begin(&numPasses, 0);
+		FAIL_DEVEND(hr, "Failed to begin effect");
+
+		hr = m_effect->BeginPass(0);
+		FAIL_EFFEND(hr, "Failed to begin pass");
+
+		hr = m_device->SetVertexDeclaration(DistantLandShare::LandDecl);
+		FAIL_PASSEND(hr, "Failed to set vertex declaration");
+
+		VisibleSet occluders((IpcServerVector(vec)));
+		occluders.RenderServer(m_device, SIZEOFLANDVERT, DistantLandShare::landscapeBufferMap);
+
+		m_effect->EndPass();
+		m_effect->End();
+
+		if (++counter % 1000 == 0) {
+			// save a sample
+			m_device->EndScene();
+			D3DXSaveSurfaceToFileA("occlusion.bmp", D3DXIFF_BMP, m_occlusionSurface, NULL, NULL);
+
+			return true;
 		}
 
-		hr = m_device->SetTransform(D3DTS_PROJECTION, &params.proj);
-		if (FAILED(hr)) {
-			LOG::logline("Failed to set projection matrix: %08X", hr);
-			return false;
-		}
-
+		m_hasOcclusion = true;
 		return true;
 	}
 }

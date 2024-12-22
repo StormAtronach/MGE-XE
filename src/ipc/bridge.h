@@ -59,7 +59,11 @@ enum VisibleSetSort : std::uint8_t {
 };
 
 namespace IPC {
+#ifdef _DEBUG
+    constexpr DWORD MaxWait = 6000000; // give ourselves plenty of time to debug the call
+#else
     constexpr DWORD MaxWait = 60000;
+#endif
 
     typedef std::uint32_t VecId;
     constexpr VecId InvalidVector = static_cast<VecId>(-1);
@@ -180,6 +184,8 @@ namespace IPC {
         IN VecId visibleSet;
         IN D3DXMATRIX view;
         IN D3DXMATRIX proj;
+        IN D3DXMATRIX world;
+        IN D3DXVECTOR4 eyePos;
     };
 
 	struct Parameters {

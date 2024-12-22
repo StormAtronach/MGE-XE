@@ -68,7 +68,6 @@ public:
     static ID3DXEffect* effectShadow;
     static ID3DXEffect* effectDepth;
     static ID3DXEffectPool* effectPool;
-    static IDirect3DVertexDeclaration9* LandDecl;
     static IDirect3DVertexDeclaration9* StaticDecl;
     static IDirect3DVertexDeclaration9* WaterDecl;
     static IDirect3DVertexDeclaration9* GrassDecl;
@@ -201,7 +200,7 @@ public:
 
     static void setupCommonEffect(const D3DXMATRIX* view,const  D3DXMATRIX* proj);
 
-    static void renderDistantLand(ID3DXEffect* e, const D3DXMATRIX* view, const D3DXMATRIX* proj);
+    static void renderDistantLand(ID3DXEffect* e, const D3DXMATRIX* view, const D3DXMATRIX* proj, bool generateOcclusion = false);
     static void renderDistantLandZ();
     static void cullDistantStatics(const D3DXMATRIX* view, const D3DXMATRIX* proj);
     static void renderDistantStatics();

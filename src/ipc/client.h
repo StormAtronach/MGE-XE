@@ -228,13 +228,13 @@ namespace IPC {
 		bool initOcclusionBlocking(IDirect3DDevice9* device);
 
 		/**
-		* @brief Generate an occlusion mask from the provided visible meshes.
+		* @brief Generate an occlusion mask from the provided visible landscape meshes.
 		* @param visibleSet ID of a shared vector of RenderMesh objects which will be used to create the occlusion mask. This vector must not be modified before the RPC completes.
-		* @param view The camera's current view matrix.
-		* @param proj The projection matrix.
+		* @param effect An effect containing the necessary matrices for landscape occlusion.
+		* @param eyePos A vector describing the position of the player's eyes.
 		* @return Whether the RPC was issued successfully.
 		*/
-		bool generateOcclusionMask(VecId visibleSet, const D3DXMATRIX& view, const D3DXMATRIX& proj);
+		bool generateOcclusionMask(VecId visibleSet, ID3DXEffect* effect, const D3DXVECTOR4& eyePos);
 
 		WakeReason waitForCompletion(DWORD ms = MaxWait);
 	};

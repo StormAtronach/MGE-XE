@@ -1,4 +1,5 @@
 #include "client.h"
+#include "mge/distantland.h"
 #include "support/log.h"
 
 #include <cassert>
@@ -292,13 +293,16 @@ namespace IPC {
 		return params.success;
 	}
 
-	bool Client::generateOcclusionMask(VecId visibleSet, const D3DXMATRIX& view, const D3DXMATRIX& proj) {
+	bool Client::generateOcclusionMask(VecId visibleSet, ID3DXEffect* effect, const D3DXVECTOR4& eyePos) {
 		WAIT_FOR_PREVIOUS_COMMAND;
 
 		auto& params = m_ipcParameters->params.occlusionMaskParams;
 		params.visibleSet = visibleSet;
-		params.view = view;
-		params.proj = proj;
+		
+		effect->GetMatrix(DistantLand::ehWorld, &params.world);
+		effect->GetMatrix(DistantLand::ehView, &params.view);
+		effect->GetMatrix(DistantLand::ehProj, &params.proj);
+		params.eyePos = eyePos;
 
 		return beginRpc(Command::GenerateOcclusionMask);
 	}

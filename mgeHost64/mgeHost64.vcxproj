@@ -161,6 +161,7 @@
     <ClInclude Include="..\src\ipc\vecwrap.h" />
     <ClInclude Include="..\src\mge\configinternal.h" />
     <ClInclude Include="..\src\mge\configuration.h" />
+    <ClInclude Include="..\src\mge\distantshader.h" />
     <ClInclude Include="..\src\mge\dlformat.h" />
     <ClInclude Include="..\src\mge\dlmath.h" />
     <ClInclude Include="..\src\mge\inidata.h" />

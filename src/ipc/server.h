@@ -41,11 +41,16 @@ namespace IPC {
 		IDirect3D9Ex* m_d3d;
 		IDirect3DDevice9Ex* m_device;
 
+		ID3DXEffect* m_effect;
+		D3DXHANDLE m_technique;
+		D3DXHANDLE m_worldParam;
+		D3DXHANDLE m_viewParam;
+		D3DXHANDLE m_projParam;
+		D3DXHANDLE m_eyePosParam;
+
 		IDirect3DQuery9* m_occlusionQuery;
 		IDirect3DSurface9* m_occlusionSurface;
-		IDirect3DTexture9* m_occlusionTexture;
 		IDirect3DIndexBuffer9* m_occlusionIndexes;
-		ID3DXRenderToSurface* m_occlusionRender;
 
 		bool m_hasOcclusion;
 
@@ -63,6 +68,9 @@ namespace IPC {
 		void getVisibleMeshes();
 		void sortVisibleSet();
 		bool generateOcclusionMask();
+
+		bool initD3D();
+		bool initShaders();
 
 	public:
 		Server(HANDLE sharedMem, HANDLE clientProcess, HANDLE rpcStartEvent, HANDLE rpcCompleteEvent);

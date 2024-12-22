@@ -64,7 +64,7 @@ void DistantLand::renderStage0() {
                 // Draw distant landscape
                 if (mwBridge->IsExterior()) {
                     effect->BeginPass(PASS_RENDERLAND);
-                    renderDistantLand(effect, &mwView, &distProj);
+                    renderDistantLand(effect, &mwView, &distProj, true);
                     effect->EndPass();
                 }
 

@@ -33,6 +33,77 @@ public:
     }
 };
 
+static const std::string shaderCoreModPrefix = "XE Mod";
+static const std::string pathCoreShaders = "Data Files\\shaders\\core\\";
+static const std::string pathCoreMods = "Data Files\\shaders\\core-mods\\";
+
+struct CoreModInclude : public ID3DXInclude {
+    std::vector<std::string> modsFound;
+    std::optional<std::string> testSingleMod;
+
+    STDMETHOD(Open)(D3DXINCLUDE_TYPE IncludeType, LPCSTR pFileName, LPCVOID pParentData, LPCVOID* ppData, UINT* pBytes) {
+        std::string filename(pFileName), shaderPath = filename;
+        bool isMod = false;
+        char* buffer = nullptr;
+        HANDLE h;
+
+        // Check if it uses the core shader path prefix, if not, add the prefix
+        if (filename.compare(0, pathCoreShaders.length(), pathCoreShaders) != 0) {
+            shaderPath = pathCoreShaders + filename;
+        }
+
+        if (!testSingleMod) {
+            // Check if this file is moddable, and if a core-mod exists, use its path
+            if (filename.substr(0, shaderCoreModPrefix.length()) == shaderCoreModPrefix) {
+                std::string modShaderPath = pathCoreMods + filename;
+                if (GetFileAttributes(modShaderPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                    isMod = true;
+                    shaderPath = modShaderPath;
+                }
+            }
+        }
+        else {
+            // Only load the specified mod for testing, ignoring others
+            if (testSingleMod.value() == filename) {
+                isMod = true;
+                shaderPath = pathCoreMods + filename;
+            }
+        }
+
+        // Read file contents for the effect compiler
+        h = CreateFile(shaderPath.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        if (h != INVALID_HANDLE_VALUE) {
+            DWORD bytesRead, bufferSize = GetFileSize(h, NULL);
+
+            buffer = new char[bufferSize];
+            ReadFile(h, buffer, bufferSize, &bytesRead, 0);
+            CloseHandle(h);
+
+            if (isMod) {
+                modsFound.push_back(filename);
+            }
+
+            *ppData = buffer;
+            *pBytes = bufferSize;
+            return S_OK;
+        }
+        return E_FAIL;
+    }
+
+    STDMETHOD(Close)(LPCVOID pData) {
+        char* buffer = (char*)(pData);
+        delete[] buffer;
+        return S_OK;
+    }
+};
+
+// World mesh vertex declaration
+const D3DVERTEXELEMENT9 LandElem[] = {
+    {0, 0,  D3DDECLTYPE_FLOAT3,  D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
+    {0, 12, D3DDECLTYPE_SHORT2N, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0},
+    D3DDECL_END()
+};
+
 class DistantLandShare {
 public:
     struct WorldSpace {
@@ -47,6 +118,8 @@ public:
     static const WorldSpace* currentWorldSpace;
     static bool hasCurrentWorldSpace;
 	static QuadTree LandQuadTree;
+    static IDirect3DVertexDeclaration9* LandDecl;
+    static std::unordered_map<ptr32<IDirect3DVertexBuffer9>, std::pair<IDirect3DVertexBuffer9*, IDirect3DIndexBuffer9*>> landscapeBufferMap;
 
     static bool initDistantStaticsServer(IPC::Vec<DistantStatic>& distantStatics, IPC::Vec<DistantSubset>& distantSubsets, IDirect3DDevice9Ex* device);
     static void loadVisGroupsServer(HANDLE h);
@@ -267,7 +340,7 @@ public:
         return total_instances * sizeof(QuadTreeMesh);
     }
 
-    static bool initLandscapeServer(IPC::Vec<IPC::LandscapeBuffers>& landscapeBuffers, ptr32<IDirect3DTexture9> texWorldColour);
+    static bool initLandscapeServer(IPC::Vec<IPC::LandscapeBuffers>& landscapeBuffers, ptr32<IDirect3DTexture9> texWorldColour, IDirect3DDevice9Ex* device);
     static bool setCurrentWorldSpace(const char* name);
     static void getVisibleMeshesCoarse(IPC::Vec<RenderMesh>& output, const ViewFrustum& viewFrustum, VisibleSetSort sort, DWORD setFlags);
     static void getVisibleMeshes(IPC::Vec<RenderMesh>& output, const ViewFrustum& viewFrustum, const D3DXVECTOR4& viewSphere, VisibleSetSort sort, DWORD setFlags);

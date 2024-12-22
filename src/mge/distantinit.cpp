@@ -30,7 +30,6 @@ ID3DXEffect* DistantLand::effect;
 ID3DXEffect* DistantLand::effectShadow;
 ID3DXEffect* DistantLand::effectDepth;
 ID3DXEffectPool* DistantLand::effectPool;
-IDirect3DVertexDeclaration9* DistantLand::LandDecl;
 IDirect3DVertexDeclaration9* DistantLand::StaticDecl;
 IDirect3DVertexDeclaration9* DistantLand::WaterDecl;
 IDirect3DVertexDeclaration9* DistantLand::GrassDecl;
@@ -169,13 +168,6 @@ static vector<MeshResources> meshCollectionStatics;
 // Water plane vertex declaration
 const D3DVERTEXELEMENT9 WaterElem[] = {
     {0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-    D3DDECL_END()
-};
-
-// World mesh vertex declaration
-const D3DVERTEXELEMENT9 LandElem[] = {
-    {0, 0,  D3DDECLTYPE_FLOAT3,  D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-    {0, 12, D3DDECLTYPE_SHORT2N, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0},
     D3DDECL_END()
 };
 
@@ -334,70 +326,6 @@ bool DistantLand::reloadShaders() {
 
     return true;
 }
-
-static const string shaderCoreModPrefix = "XE Mod";
-static const string pathCoreShaders = "Data Files\\shaders\\core\\";
-static const string pathCoreMods = "Data Files\\shaders\\core-mods\\";
-
-struct CoreModInclude : public ID3DXInclude {
-    vector<string> modsFound;
-    std::optional<string> testSingleMod;
-
-    STDMETHOD(Open)(D3DXINCLUDE_TYPE IncludeType, LPCSTR pFileName, LPCVOID pParentData, LPCVOID *ppData, UINT *pBytes) {
-        string filename(pFileName), shaderPath = filename;
-        bool isMod = false;
-        char *buffer = nullptr;
-        HANDLE h;
-
-        // Check if it uses the core shader path prefix, if not, add the prefix
-        if (filename.compare(0, pathCoreShaders.length(), pathCoreShaders) != 0) {
-            shaderPath = pathCoreShaders + filename;
-        }
-
-        if (!testSingleMod) {
-            // Check if this file is moddable, and if a core-mod exists, use its path
-            if (filename.substr(0, shaderCoreModPrefix.length()) == shaderCoreModPrefix) {
-                string modShaderPath = pathCoreMods + filename;
-                if (GetFileAttributes(modShaderPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
-                    isMod = true;
-                    shaderPath = modShaderPath;
-                }
-            }
-        }
-        else {
-            // Only load the specified mod for testing, ignoring others
-            if (testSingleMod.value() == filename) {
-                isMod = true;
-                shaderPath = pathCoreMods + filename;
-            }
-        }
-
-        // Read file contents for the effect compiler
-        h = CreateFile(shaderPath.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-        if (h != INVALID_HANDLE_VALUE) {
-            DWORD bytesRead, bufferSize = GetFileSize(h, NULL);
-
-            buffer = new char[bufferSize];
-            ReadFile(h, buffer, bufferSize, &bytesRead, 0);
-            CloseHandle(h);
-
-            if (isMod) {
-                modsFound.push_back(filename);
-            }
-
-            *ppData = buffer;
-            *pBytes = bufferSize;
-            return S_OK;
-        }
-        return E_FAIL;
-    }
-
-    STDMETHOD(Close)(LPCVOID pData) {
-        char *buffer = (char*)(pData);
-        delete [] buffer;
-        return S_OK;
-    }
-};
 
 static void logShaderError(ID3DXBuffer* errors) {
     if (errors) {
@@ -1159,7 +1087,7 @@ bool DistantLand::initLandscapeClient() {
 bool DistantLand::initLandscape() {
     HRESULT hr;
 
-    hr = device->CreateVertexDeclaration(LandElem, &LandDecl);
+    hr = device->CreateVertexDeclaration(LandElem, &DistantLandShare::LandDecl);
     if (hr != D3D_OK) {
         LOG::logline("!! Failed to to create world vertex declaration");
         return false;
@@ -1346,8 +1274,8 @@ void DistantLand::release() {
         vbWaveSim = nullptr;
     }
 
-    LandDecl->Release();
-    LandDecl = nullptr;
+    DistantLandShare::LandDecl->Release();
+    DistantLandShare::LandDecl = nullptr;
     StaticDecl->Release();
     StaticDecl = nullptr;
     WaterDecl->Release();

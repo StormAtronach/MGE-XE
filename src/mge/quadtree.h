@@ -5,6 +5,7 @@
 #include "ipc/bridge.h"
 
 #include <algorithm>
+#include <unordered_map>
 #include <vector>
 
 
@@ -43,6 +44,30 @@ public:
     VisibleSet() {}
     VisibleSet(T&& container): visible_set(container) {}
     ~VisibleSet() {}
+
+#ifdef MGE64_HOST
+    void RenderServer(IDirect3DDevice9Ex* device, unsigned int vertex_size,
+        const std::unordered_map<ptr32<IDirect3DVertexBuffer9>, std::pair<IDirect3DVertexBuffer9*, IDirect3DIndexBuffer9*>>& bufferMap) {
+        IDirect3DVertexBuffer9* last_buffer = 0;
+
+        visible_set.restart();
+        while (!visible_set.at_end()) {
+            const RenderMesh& mesh = visible_set.next();
+
+            auto& buffers = bufferMap.at(mesh.vBuffer);
+            auto vBuffer = buffers.first;
+            auto iBuffer = buffers.second;
+            // Set buffer if it has changed
+            if (last_buffer != vBuffer) {
+                device->SetIndices(iBuffer);
+                device->SetStreamSource(0, vBuffer, 0, vertex_size);
+                last_buffer = vBuffer;
+            }
+
+            device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, mesh.verts, 0, mesh.faces);
+        }
+    }
+#endif
 
     void Render(IDirect3DDevice9* device,
                 unsigned int vertex_size,
