@@ -1,7 +1,7 @@
 
-MGE XE 0.18.0
+MGE XE 0.19.1
 -------------
-Released 2024-11-11
+Released 2025-09-23
 
 Source available at https://github.com/Hrnchamd/MGE-XE
 Licensed under GPL v2 https://github.com/Hrnchamd/MGE-XE/blob/master/license.txt
