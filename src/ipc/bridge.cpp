@@ -48,10 +48,10 @@ bool IPC::initImports() {
 
 ViewFrustum::ViewFrustum(const D3DXMATRIX* viewProj) {
     // Near plane
-    frustum[0].a = viewProj->_13;
-    frustum[0].b = viewProj->_23;
-    frustum[0].c = viewProj->_33;
-    frustum[0].d = viewProj->_43;
+    frustum[0].a = viewProj->_14 + viewProj->_13;
+    frustum[0].b = viewProj->_24 + viewProj->_23;
+    frustum[0].c = viewProj->_34 + viewProj->_33;
+    frustum[0].d = viewProj->_44 + viewProj->_43;
 
     // Far plane
     frustum[1].a = viewProj->_14 - viewProj->_13;
