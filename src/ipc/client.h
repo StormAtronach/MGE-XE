@@ -99,11 +99,21 @@ namespace IPC {
 
 			assert(sizeof(T) == params.elementSize);
 
+			// map header
+			auto header32 = static_cast<VecBase::VecShare*>(MapViewOfFile(params.sharedMem32, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(VecBase::VecShare)));
+			if (header32 == nullptr) {
+				LOG::winerror("Failed to map header for vec %u", params.id);
+				freeVecBlocking(params.id);
+				return std::nullopt;
+			}
+
 			// recalculate elements per window
 			auto windowElements = params.windowBytes / sizeof(T);
-			VecView<T> view(params.id, static_cast<VecBase::VecShare*>(params.header32), static_cast<std::size_t>(windowElements), static_cast<std::size_t>(params.windowBytes),
+			VecView<T> view(params.id, header32, static_cast<std::size_t>(windowElements), static_cast<std::size_t>(params.windowBytes),
 				static_cast<std::size_t>((params.reservedBytes / params.windowBytes) * windowElements), static_cast<std::size_t>(params.reservedBytes), static_cast<std::size_t>(params.headerBytes));
 			if (!view.init()) {
+				UnmapViewOfFile(header32);
+				freeVecBlocking(params.id);
 				return std::nullopt;
 			}
 
