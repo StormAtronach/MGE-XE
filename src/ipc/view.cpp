@@ -33,7 +33,7 @@ namespace IPC {
 		m_subIndex(0),
 		m_buffer(nullptr)
 	{
-		InterlockedIncrement(&m_shared->users);
+		InterlockedIncrement(&m_shared->users32);
 	}
 
 	template<typename T>
@@ -46,7 +46,7 @@ namespace IPC {
 		m_subIndex(other.m_subIndex),
 		m_buffer(nullptr)
 	{
-		InterlockedIncrement(&m_shared->users);
+		InterlockedIncrement(&m_shared->users32);
 
 		init();
 	}
@@ -92,7 +92,10 @@ namespace IPC {
 		}
 
 		if (m_shared != nullptr) {
-			InterlockedDecrement(&m_shared->users);
+			auto remainingUsers = InterlockedDecrement(&m_shared->users32);
+			if (remainingUsers == 0) {
+				UnmapViewOfFile(m_shared);
+			}
 		}
 
 		m_id = other.m_id;
@@ -110,7 +113,7 @@ namespace IPC {
 		// only one view should be writing at a time
 		m_writing = false;
 
-		InterlockedIncrement(&m_shared->users);
+		InterlockedIncrement(&m_shared->users32);
 
 		init();
 
@@ -205,7 +208,10 @@ namespace IPC {
 	template<typename T>
 	VecView<T>::~VecView() {
 		if (m_shared != nullptr) {
-			InterlockedDecrement(&m_shared->users);
+			auto remainingUsers = InterlockedDecrement(&m_shared->users32);
+			if (remainingUsers == 0) {
+				UnmapViewOfFile(m_shared);
+			}
 			m_shared = nullptr;
 		}
 

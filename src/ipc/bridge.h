@@ -72,16 +72,12 @@ namespace IPC {
     }
 
     // these APIs aren't supported until Windows 8 or 10, so we load them dynamically
-    typedef decltype(&::MapViewOfFileNuma2) MapViewOfFileNuma2_t;
     typedef decltype(&::MapViewOfFile3) MapViewOfFile3_t;
     typedef decltype(&::UnmapViewOfFileEx) UnmapViewOfFileEx_t;
-    typedef decltype(&::UnmapViewOfFile2) UnmapViewOfFile2_t;
     typedef decltype(&::VirtualAlloc2) VirtualAlloc2_t;
 
-    extern MapViewOfFileNuma2_t MapViewOfFileNuma2;
     extern MapViewOfFile3_t MapViewOfFile3;
     extern UnmapViewOfFileEx_t UnmapViewOfFileEx;
-    extern UnmapViewOfFile2_t UnmapViewOfFile2;
     extern VirtualAlloc2_t VirtualAlloc2;
 
     extern bool initImports();
@@ -120,7 +116,7 @@ namespace IPC {
         OUT std::uint32_t reservedBytes;
         OUT std::uint32_t windowBytes;
         OUT std::uint32_t headerBytes;
-        OUT ptr32<void> header32;
+        OUT HANDLE32 sharedMem32;
         OUT VecId id;
     };
 

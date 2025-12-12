@@ -152,6 +152,10 @@ namespace IPC {
 		auto& params = m_ipcParameters->params.freeVecParams;
 		params.wasFreed = false;
 
+		if (params.id == InvalidVector) {
+			return true;
+		}
+
 		auto& vec = m_vecs[params.id];
 		if (vec != nullptr) {
 			if (!vec->can_free())

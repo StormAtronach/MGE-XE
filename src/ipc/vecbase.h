@@ -28,7 +28,8 @@ namespace IPC {
 				};
 				HANDLE64 waitHandles64[2];
 			};
-			std::uint32_t users;
+			std::uint32_t users64;
+			std::uint32_t users32;
 			HANDLE32 sharedMem32;
 			union {
 				struct {
@@ -37,7 +38,6 @@ namespace IPC {
 				};
 				HANDLE32 waitHandles32[2];
 			};
-			ptr32<VecShare> header32;
 			// reading flags are shared and writing flags aren't because we support multiple readers but not multiple writers
 			// we have separate reading flags for the two sides because we don't want the writer to get confused and think it's reading
 			bool reading32;
