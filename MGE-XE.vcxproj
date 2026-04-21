@@ -132,6 +132,7 @@
     <ClCompile Include="src\mge\morrowindbsa.cpp" />
     <ClCompile Include="src\mge\mwbridge.cpp" />
     <ClCompile Include="src\mge\mwinitpatch.cpp" />
+    <ClCompile Include="src\mge\lightsnapshot.cpp" />
     <ClCompile Include="src\mge\postshaders.cpp" />
     <ClCompile Include="src\mge\quadtree.cpp" />
     <ClCompile Include="src\mge\renderdepth.cpp" />
@@ -198,6 +199,7 @@
     <ClInclude Include="src\mge\morrowindbsa.h" />
     <ClInclude Include="src\mge\mwbridge.h" />
     <ClInclude Include="src\mge\mwinitpatch.h" />
+    <ClInclude Include="src\mge\lightsnapshot.h" />
     <ClInclude Include="src\mge\postshaders.h" />
     <ClInclude Include="src\mge\quadtree.h" />
     <ClInclude Include="src\mge\specificrender.h" />

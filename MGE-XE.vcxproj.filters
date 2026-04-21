@@ -138,6 +138,9 @@
     <ClCompile Include="src\mge\mwinitpatch.cpp">
       <Filter>Source Files\mge</Filter>
     </ClCompile>
+    <ClCompile Include="src\mge\lightsnapshot.cpp">
+      <Filter>Source Files\mge</Filter>
+    </ClCompile>
     <ClCompile Include="src\mge\postshaders.cpp">
       <Filter>Source Files\mge</Filter>
     </ClCompile>
@@ -312,6 +315,9 @@
       <Filter>Header Files\mge</Filter>
     </ClInclude>
     <ClInclude Include="src\mge\mwinitpatch.h">
+      <Filter>Header Files\mge</Filter>
+    </ClInclude>
+    <ClInclude Include="src\mge\lightsnapshot.h">
       <Filter>Header Files\mge</Filter>
     </ClInclude>
     <ClInclude Include="src\mge\postshaders.h">
