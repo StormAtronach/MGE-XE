@@ -2,5 +2,7 @@
 /packages/
 /bin/
 /mgeHost64/bin/
+/MGEgui/bin/
+/MGEgui/obj/
 *.vcxproj.user
 *.csproj.user

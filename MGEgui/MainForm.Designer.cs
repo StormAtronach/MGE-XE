@@ -233,6 +233,8 @@ namespace MGEgui {
             this.lInstructions = new System.Windows.Forms.Label();
             this.SShotFolderDialog = new System.Windows.Forms.FolderBrowserDialog();
             this.cbUseSharedMemory = new System.Windows.Forms.CheckBox();
+            this.cbDLUseStaticInstancing = new System.Windows.Forms.CheckBox();
+            this.cbDLUseOcclusionCulling = new System.Windows.Forms.CheckBox();
             this.tpInput.SuspendLayout();
             this.gbMWLighting.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.udLightingConst)).BeginInit();
@@ -1960,11 +1962,13 @@ namespace MGEgui {
             this.tableLayoutDLLeft.TabIndex = 0;
             // 
             // gbXEFeatures
-            // 
+            //
             this.gbXEFeatures.Controls.Add(this.cbDLSunShadows);
             this.gbXEFeatures.Controls.Add(this.cmbDLShadowDetail);
             this.gbXEFeatures.Controls.Add(this.cmbPerPixelLightFlags);
             this.gbXEFeatures.Controls.Add(this.cbPerPixelLighting);
+            this.gbXEFeatures.Controls.Add(this.cbDLUseStaticInstancing);
+            this.gbXEFeatures.Controls.Add(this.cbDLUseOcclusionCulling);
             this.gbXEFeatures.Controls.Add(this.bMWLightSettings);
             this.gbXEFeatures.Dock = System.Windows.Forms.DockStyle.Fill;
             this.gbXEFeatures.Location = new System.Drawing.Point(4, 468);
@@ -1977,9 +1981,9 @@ namespace MGEgui {
             this.gbXEFeatures.Text = "XE";
             // 
             // cbDLSunShadows
-            // 
+            //
             this.cbDLSunShadows.AutoSize = true;
-            this.cbDLSunShadows.Location = new System.Drawing.Point(27, 38);
+            this.cbDLSunShadows.Location = new System.Drawing.Point(27, 24);
             this.cbDLSunShadows.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.cbDLSunShadows.Name = "cbDLSunShadows";
             this.cbDLSunShadows.Size = new System.Drawing.Size(225, 29);
@@ -1994,7 +1998,7 @@ namespace MGEgui {
             this.cmbDLShadowDetail.Items.AddRange(new object[] {
             "medium",
             "high"});
-            this.cmbDLShadowDetail.Location = new System.Drawing.Point(332, 36);
+            this.cmbDLShadowDetail.Location = new System.Drawing.Point(332, 22);
             this.cmbDLShadowDetail.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.cmbDLShadowDetail.Name = "cmbDLShadowDetail";
             this.cmbDLShadowDetail.Size = new System.Drawing.Size(172, 33);
@@ -2009,7 +2013,7 @@ namespace MGEgui {
             this.cmbPerPixelLightFlags.Items.AddRange(new object[] {
             "always on",
             "interiors only"});
-            this.cmbPerPixelLightFlags.Location = new System.Drawing.Point(304, 88);
+            this.cmbPerPixelLightFlags.Location = new System.Drawing.Point(304, 60);
             this.cmbPerPixelLightFlags.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.cmbPerPixelLightFlags.Name = "cmbPerPixelLightFlags";
             this.cmbPerPixelLightFlags.Size = new System.Drawing.Size(200, 33);
@@ -2017,20 +2021,20 @@ namespace MGEgui {
             this.cmbPerPixelLightFlags.Text = "always on";
             // 
             // cbPerPixelLighting
-            // 
-            this.cbPerPixelLighting.Location = new System.Drawing.Point(27, 78);
+            //
+            this.cbPerPixelLighting.Location = new System.Drawing.Point(27, 64);
             this.cbPerPixelLighting.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.cbPerPixelLighting.Name = "cbPerPixelLighting";
-            this.cbPerPixelLighting.Size = new System.Drawing.Size(248, 54);
+            this.cbPerPixelLighting.Size = new System.Drawing.Size(248, 29);
             this.cbPerPixelLighting.TabIndex = 1;
             this.cbPerPixelLighting.Text = "Per-pixel lighting shader";
             this.cbPerPixelLighting.UseVisualStyleBackColor = true;
             this.cbPerPixelLighting.CheckedChanged += new System.EventHandler(this.cbPerPixelLighting_CheckedChanged);
             // 
             // bMWLightSettings
-            // 
+            //
             this.bMWLightSettings.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
-            this.bMWLightSettings.Location = new System.Drawing.Point(136, 153);
+            this.bMWLightSettings.Location = new System.Drawing.Point(136, 158);
             this.bMWLightSettings.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.bMWLightSettings.Name = "bMWLightSettings";
             this.bMWLightSettings.Size = new System.Drawing.Size(240, 38);
@@ -2038,6 +2042,28 @@ namespace MGEgui {
             this.bMWLightSettings.Text = "Light Settings...";
             this.bMWLightSettings.UseVisualStyleBackColor = true;
             this.bMWLightSettings.Click += new System.EventHandler(this.bMWLightSettings_Click);
+            //
+            // cbDLUseStaticInstancing
+            //
+            this.cbDLUseStaticInstancing.AutoSize = true;
+            this.cbDLUseStaticInstancing.Location = new System.Drawing.Point(27, 99);
+            this.cbDLUseStaticInstancing.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.cbDLUseStaticInstancing.Name = "cbDLUseStaticInstancing";
+            this.cbDLUseStaticInstancing.Size = new System.Drawing.Size(225, 29);
+            this.cbDLUseStaticInstancing.TabIndex = 12;
+            this.cbDLUseStaticInstancing.Text = "Distant statics instancing";
+            this.cbDLUseStaticInstancing.UseVisualStyleBackColor = true;
+            //
+            // cbDLUseOcclusionCulling
+            //
+            this.cbDLUseOcclusionCulling.AutoSize = true;
+            this.cbDLUseOcclusionCulling.Location = new System.Drawing.Point(27, 128);
+            this.cbDLUseOcclusionCulling.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.cbDLUseOcclusionCulling.Name = "cbDLUseOcclusionCulling";
+            this.cbDLUseOcclusionCulling.Size = new System.Drawing.Size(280, 29);
+            this.cbDLUseOcclusionCulling.TabIndex = 13;
+            this.cbDLUseOcclusionCulling.Text = "Occlusion culling (MSOC plugin)";
+            this.cbDLUseOcclusionCulling.UseVisualStyleBackColor = true;
             // 
             // gbDLDrawDist
             // 
@@ -3656,5 +3682,7 @@ namespace MGEgui {
         private Label lCam3rdY;
         private Label lCam3rdZ;
         private CheckBox cbUseSharedMemory;
+        private CheckBox cbDLUseStaticInstancing;
+        private CheckBox cbDLUseOcclusionCulling;
     }
 }

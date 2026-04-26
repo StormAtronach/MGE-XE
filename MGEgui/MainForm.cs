@@ -144,6 +144,8 @@ namespace MGEgui {
             { "DLSunShadows", new string[] { "cbDLSunShadows" } },
             { "PerPixelLighting", new string[] { "cbPerPixelLighting" } },
             { "LightSettings", new string[] { "bMWLightSettings" } },
+            { "DLUseStaticInstancing", new string[] { "cbDLUseStaticInstancing" } },
+            { "DLUseOcclusionCulling", new string[] { "cbDLUseOcclusionCulling" } },
 
             /* In-game */
             { "DisableMGE", new string [] { "cbDisableMGE" } },
@@ -365,6 +367,12 @@ namespace MGEgui {
         private static INIFile.INIVariableDef iniSSName = new INIFile.INIVariableDef("SSName", siniRendState, "Screenshot Name Prefix", INIFile.INIVariableType.String, "Morrowind");
         private static INIFile.INIVariableDef iniSSDir = new INIFile.INIVariableDef("SSDir", siniRendState, "Screenshot Output Directory", INIFile.INIVariableType.String, "");
         private static INIFile.INIVariableDef iniUseSharedMemory = new INIFile.INIVariableDef("UseSharedMemory", siniMisc, "Use Shared Memory", INIFile.INIBoolType.Text, "False");
+        // Distant pipeline (instancing + MSOC plugin integration)
+        private static INIFile.INIVariableDef iniUseStaticInstancing = new INIFile.INIVariableDef("UseStaticInstancing", siniMisc, "Use Static Instancing", INIFile.INIBoolType.Text, "False");
+        private static INIFile.INIVariableDef iniUseOcclusionCulling = new INIFile.INIVariableDef("UseOcclusionCulling", siniMisc, "Use Occlusion Culling", INIFile.INIBoolType.Text, "False");
+        private static INIFile.INIVariableDef iniOccHysteresisFrames = new INIFile.INIVariableDef("OccHysteresisFrames", siniMisc, "Occlusion Hysteresis Frames", INIFile.INIVariableType.Int32, "8", 1, 30);
+        private static INIFile.INIVariableDef iniOccSphereInflate = new INIFile.INIVariableDef("OccSphereInflate", siniMisc, "Occlusion Sphere Inflate", INIFile.INIVariableType.Single, "1.15", 1.0, 3.0, 2);
+        private static INIFile.INIVariableDef iniLogDistantPipeline = new INIFile.INIVariableDef("LogDistantPipeline", siniMisc, "Log Distant Pipeline", INIFile.INIBoolType.Text, "False");
         // In-game
         private static INIFile.INIVariableDef iniDisableMGE = new INIFile.INIVariableDef("DisableMGE", siniMisc, "MGE Disabled", INIFile.INIBoolType.Text, "False");
         private static INIFile.INIVariableDef iniDisableMWSE = new INIFile.INIVariableDef("DisableMWSE", siniMisc, "Internal MWSE Disabled", INIFile.INIBoolType.Text, "False");
@@ -420,6 +428,9 @@ namespace MGEgui {
             iniFOVAuto, iniFOV, iniUIScale, iniWindowAlignX, iniWindowAlignY,
             iniFogMode, iniHWShader, iniHDRTime, iniFPSCount, iniReduceTexMemUse,
             iniSSFormat, iniSSSuffix, iniSSName, iniSSDir, iniUseSharedMemory,
+            // Distant pipeline (instancing + MSOC)
+            iniUseStaticInstancing, iniUseOcclusionCulling,
+            iniOccHysteresisFrames, iniOccSphereInflate, iniLogDistantPipeline,
             // In-game
             iniDisableMGE, iniDisableMWSE, iniD3D8To9Only,
             iniSkipIntro, iniAltCombat,
@@ -548,6 +559,8 @@ namespace MGEgui {
             cmbDLShadowDetail.SelectedIndex = (iniFile.getKeyValue("SunShadowDetail") == 2048) ? 1 : 0;
             cbPerPixelLighting.Checked = (iniFile.getKeyValue("PPLighting") == 1);
             cmbPerPixelLightFlags.SelectedIndex = (int)iniFile.getKeyValue("PPLightingFlags");
+            cbDLUseStaticInstancing.Checked = (iniFile.getKeyValue("UseStaticInstancing") == 1);
+            cbDLUseOcclusionCulling.Checked = (iniFile.getKeyValue("UseOcclusionCulling") == 1);
             loading = false;
         }
 
@@ -632,6 +645,8 @@ namespace MGEgui {
             iniFile.setKey("SunShadowDetail", cmbDLShadowDetail.SelectedIndex == 1 ? 2048 : 1024);
             iniFile.setKey("PPLighting", cbPerPixelLighting.Checked);
             iniFile.setKey("PPLightingFlags", cmbPerPixelLightFlags.SelectedIndex);
+            iniFile.setKey("UseStaticInstancing", cbDLUseStaticInstancing.Checked);
+            iniFile.setKey("UseOcclusionCulling", cbDLUseOcclusionCulling.Checked);
             iniFile.save();
             try {
                 RegistryKey key = Registry.LocalMachine.OpenSubKey(Statics.reg_mw, true);
