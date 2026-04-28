@@ -141,6 +141,7 @@ public:
     static IDirect3DVertexBuffer9* vbFullFrame, *vbClipCube;
 
     static D3DXMATRIX mwView, mwProj;
+    static D3DXMATRIX prevViewProj;
     static D3DXMATRIX smView[2], smProj[2], smViewproj[2];
     static D3DXVECTOR4 eyeVec, eyePos, sunVec, sunPos;
     static float sunVis;

@@ -19,7 +19,8 @@ const char* effectVariableList[] = {
     "lastshader", "lastpass", "depthframe", "watertexture",
     "eyevec", "eyepos", "sunvec", "suncol", "sunamb", "sunpos", "sunvis", "HDR",
     "mview", "mproj", "fogcol", "fognearcol", "fogstart", "fogrange", "fognearstart", "fognearrange",
-    "rcpres", "fov", "time", "waterlevel", "isInterior", "isUnderwater"
+    "rcpres", "fov", "time", "waterlevel", "isInterior", "isUnderwater",
+    "prevframe", "prevviewproj"
 };
 
 const int effectVariableCount = sizeof(effectVariableList) / sizeof(const char*);
@@ -35,6 +36,8 @@ std::vector<std::unique_ptr<MGEShader>> PostShaders::shaders;
 std::vector<D3DXMACRO> PostShaders::features;
 IDirect3DTexture9* PostShaders::texLastShader;
 IDirect3DSurface9* PostShaders::surfaceLastShader;
+IDirect3DTexture9* PostShaders::texPrevFrame;
+IDirect3DSurface9* PostShaders::surfPrevFrame;
 SurfaceDoubleBuffer PostShaders::doublebuffer;
 IDirect3DVertexBuffer9* PostShaders::vbPost;
 IDirect3DSurface9* PostShaders::surfReadqueue, *PostShaders::surfReadback;
@@ -449,6 +452,14 @@ bool PostShaders::initBuffers() {
         LOG::logline("!! Failed to create post-process render target");
         return false;
     }
+    hr = device->CreateTexture(w, h, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texPrevFrame, NULL);
+    if (hr != D3D_OK) {
+        LOG::logline("!! Failed to create previous-frame render target");
+        return false;
+    }
+    texPrevFrame->GetSurfaceLevel(0, &surfPrevFrame);
+    // First-frame read should be opaque black, not uninitialized GPU memory
+    device->ColorFill(surfPrevFrame, NULL, D3DCOLOR_ARGB(255, 0, 0, 0));
 
     // Buffering setup
     IDirect3DSurface9* surfaceDoubleBuffer[2];
@@ -505,6 +516,8 @@ void PostShaders::release() {
 
     surfaceLastShader->Release();
     texLastShader->Release();
+    surfPrevFrame->Release();
+    texPrevFrame->Release();
     doublebuffer.sourceSurface()->Release();
     doublebuffer.sourceTexture()->Release();
     doublebuffer.sinkSurface()->Release();
@@ -658,6 +671,7 @@ void PostShaders::shaderTime(MGEShaderUpdateFunc updateVarsFunc, int environment
         updateVarsFunc(&*s);
         s->SetFloatArray(EV_HDR, adaptPoint, 4);
         s->SetTexture(EV_lastshader, texLastShader);
+        s->SetTexture(EV_prevframe, texPrevFrame);
         effect->Begin(&passes, 0);
 
         for (UINT p = 0; p != passes; ++p) {
@@ -676,6 +690,9 @@ void PostShaders::shaderTime(MGEShaderUpdateFunc updateVarsFunc, int environment
         // Avoid another copy by exchanging which surfaces are buffers
         doublebuffer.exchangeSource(&texLastShader, &surfaceLastShader);
     }
+
+    // Snapshot fully post-processed frame for next frame's `prevframe` sampler
+    device->StretchRect(surfaceLastShader, 0, surfPrevFrame, 0, D3DTEXF_NONE);
 
     // Copy result to back buffer
     device->StretchRect(surfaceLastShader, 0, backbuffer, 0, D3DTEXF_NONE);

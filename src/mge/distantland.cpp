@@ -637,6 +637,9 @@ void DistantLand::postProcess() {
 
             // Run all shaders (with callback to set changed vars)
             PostShaders::shaderTime(&updatePostShader, envFlags, mwBridge->frameTime());
+
+            // Cache this frame's view-proj for next frame's `prevviewproj` (used by temporal reprojection)
+            D3DXMatrixMultiply(&prevViewProj, &mwView, &mwProj);
         }
 
         // Capture pre-UI screenshots here
@@ -681,6 +684,7 @@ void DistantLand::updatePostShader(MGEShader* shader) {
     float zoom = (Configuration.MGEFlags & ZOOM_ASPECT) ? Configuration.CameraEffects.zoom : 1.0f;
     shader->SetMatrix(EV_mview, &mwView);
     shader->SetMatrix(EV_mproj, &mwProj);
+    shader->SetMatrix(EV_prevviewproj, &prevViewProj);
     shader->SetFloatArray(EV_eyevec, eyeVec, 3);
     shader->SetFloatArray(EV_eyepos, eyePos, 3);
     shader->SetFloat(EV_fov, Configuration.ScreenFOV / zoom);

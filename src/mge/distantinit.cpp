@@ -96,6 +96,7 @@ IDirect3DVertexBuffer9* DistantLand::vbFullFrame;
 IDirect3DVertexBuffer9* DistantLand::vbClipCube;
 
 D3DXMATRIX DistantLand::mwView, DistantLand::mwProj;
+D3DXMATRIX DistantLand::prevViewProj;
 D3DXMATRIX DistantLand::smView[2], DistantLand::smProj[2];
 D3DXMATRIX DistantLand::smViewproj[2];
 D3DXVECTOR4 DistantLand::eyeVec, DistantLand::eyePos;
@@ -283,6 +284,7 @@ bool DistantLand::init() {
     LOG::logline(">> Starting Distant Land init");
     vsr.init(device);
     BSA::init();
+    D3DXMatrixIdentity(&prevViewProj);
 
     if (Configuration.UseSharedMemory && !initIpc()) {
         return false;

@@ -12,7 +12,8 @@ enum EffectVariableID {
     EV_lastshader, EV_lastpass, EV_depthframe, EV_watertexture,
     EV_eyevec, EV_eyepos, EV_sunvec, EV_suncol, EV_sunamb, EV_sunpos, EV_sunvis, EV_HDR,
     EV_mview, EV_mproj, EV_fogcol, EV_fognearcol, EV_fogstart, EV_fogrange, EV_fognearstart, EV_fognearrange,
-    EV_rcpres, EV_fov, EV_time, EV_waterlevel, EV_isinterior, EV_isunderwater
+    EV_rcpres, EV_fov, EV_time, EV_waterlevel, EV_isinterior, EV_isunderwater,
+    EV_prevframe, EV_prevviewproj
 };
 
 struct MGEShader {
@@ -40,6 +41,8 @@ class PostShaders {
     static std::vector<D3DXMACRO> features;
     static IDirect3DTexture9* texLastShader;
     static IDirect3DSurface9* surfaceLastShader;
+    static IDirect3DTexture9* texPrevFrame;
+    static IDirect3DSurface9* surfPrevFrame;
     static SurfaceDoubleBuffer doublebuffer;
     static IDirect3DVertexBuffer9* vbPost;
     static IDirect3DSurface9* surfReadqueue, *surfReadback;
