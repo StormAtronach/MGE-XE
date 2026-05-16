@@ -62,6 +62,15 @@ float3 rigidNormal(float3 normal) { return mul(float4(normal, 0), worldview).xyz
 float4 skinnedVertex(float4 pos, float4 weights) { return skin(pos, weights); }
 float3 skinnedNormal(float3 normal, float4 weights) { return skin(float4(normal, 0), weights).xyz; }
 
+// 2b indexed-palette variants — per-vertex bone indices select into
+// bonePaletteGlobal[]. Used when the FFE variant key has usesGlobalPalette=1.
+float4 skinnedVertexIndexed(float4 pos, float4 weights, float4 indices) { return skinIndexed(pos, weights, indices); }
+float3 skinnedNormalIndexed(float3 normal, float4 weights, float4 indices) { return skinIndexed(float4(normal, 0), weights, indices).xyz; }
+// 2c cross-NPC batched variant — adds a per-instance baseBoneOffset (stream-1
+// D3D9 hardware-instancing attribute, float). Used when usesBatchedPalette=1.
+float4 skinnedVertexIndexedBatched(float4 pos, float4 weights, float4 indices, float baseBoneOffset) { return skinIndexedBatched(pos, weights, indices, baseBoneOffset); }
+float3 skinnedNormalIndexedBatched(float3 normal, float4 weights, float4 indices, float baseBoneOffset) { return skinIndexedBatched(float4(normal, 0), weights, indices, baseBoneOffset).xyz; }
+
 // Texgens with view space inputs, normals must be normalized due to non-uniform scaling matrices
 float3 texgenNormal(float3 normal) { return normalize(normal); }
 float3 texgenPosition(float4 pos) { return pos.xyz; }

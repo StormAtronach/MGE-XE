@@ -8,6 +8,7 @@
 #include "configuration.h"
 #include "distantland.h"
 #include "mwbridge.h"
+#include "skinneddraw.h"
 #include "statusoverlay.h"
 #include "userhud.h"
 #include "videobackground.h"
@@ -27,6 +28,16 @@ static float crosshairTimeout;
 static RenderedState rs;
 static FragmentState frs;
 static LightState lightrs;
+
+// Accessors so out-of-TU takeover paths (e.g. skinneddraw.cpp's 2b handler)
+// can stage synthetic draws through the same renderMorrowind path the
+// proxy intercept would use. Mutating these globals is safe only between
+// captured draws — during a draw the proxy is the rightful owner.
+namespace MGEProxyState {
+    RenderedState* getRenderedState() { return &rs; }
+    FragmentState* getFragmentState() { return &frs; }
+    LightState*    getLightState()    { return &lightrs; }
+}
 
 static void initOnLoad();
 static bool detectMenu(const D3DMATRIX* m);
@@ -92,6 +103,12 @@ MGEProxyDevice::MGEProxyDevice(IDirect3DDevice9* real, ProxyD3D* d3d) : ProxyDev
 // Present - End of MW frame
 // MGE end of frame processing
 HRESULT _stdcall MGEProxyDevice::Present(const RECT* a, const RECT* b, HWND c, const RGNDATA* d) {
+    // Option-D — true frame-to-frame time measurement at Present boundary.
+    // The previous "frameStart in onFrameBegin to frameEnd in onSceneEnd"
+    // span only covered MW's scene-render slice (~7-8ms) and undercounted
+    // real frame time by ~3x in dense scenes (45 FPS = 22ms actual).
+    MGE::SkinnedDraw::onPresent();
+
     auto mwBridge = MWBridge::get();
 
     // Load Morrowind's dynamic memory pointers
@@ -440,6 +457,10 @@ HRESULT _stdcall MGEProxyDevice::SetTextureStageState(DWORD a, D3DTEXTURESTAGEST
 // DrawIndexedPrimitive - Where all the drawing happens
 // Inspect draw calls for re-use later
 HRESULT _stdcall MGEProxyDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE a, UINT b, UINT c, UINT d, UINT e) {
+    // Option-D perf counter — counts every drawcall that reaches the proxy,
+    // skinned or otherwise. skinneddraw.cpp's per-frame log reads + resets.
+    MGE::SkinnedDraw::g_rawDrawcalls.fetch_add(1, std::memory_order_relaxed);
+
     // Allow distant land to inspect draw calls
     bool isShadowStencil = isStencilScene && stencilRef <= 1;
     if (DistantLand::ready && rendertargetNormal && isMainView && !isShadowStencil) {
@@ -589,7 +610,9 @@ HRESULT _stdcall MGEProxyDevice::LightEnable(DWORD a, BOOL b) {
 void captureRenderState(D3DRENDERSTATETYPE a, DWORD b) {
     switch (a) {
     case D3DRS_VERTEXBLEND:
-        rs.vertexBlendState = b;
+        // Translate the D3DVBF enum into a per-vertex weight count.
+        // DISABLE=0 -> 0; 1WEIGHTS=1 -> 2; 2WEIGHTS=2 -> 3; 3WEIGHTS=3 -> 4.
+        rs.numWeights = (b == D3DVBF_DISABLE) ? 0 : (int)b + 1;
         break;
     case D3DRS_ZWRITEENABLE:
         rs.zWrite = b;

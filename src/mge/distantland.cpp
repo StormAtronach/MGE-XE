@@ -7,6 +7,7 @@
 #include "postshaders.h"
 #include "mwbridge.h"
 #include "scenegraph.h"
+#include "skinneddraw.h"
 
 
 
@@ -26,6 +27,11 @@ void DistantLand::renderStage0() {
     // engine has constructed the singleton. Replaces the previous MWSE-
     // driven MGEAPIv4::onSceneGraphReady() trigger (dropped on this branch).
     MGE::SceneGraph::onFrameReady();
+
+    // Clear the 2b per-frame bone-palette cache. Same once-per-frame guarantee
+    // as the scene-graph snapshot above. Cheap no-op when the smoke-test hook
+    // isn't installed.
+    MGE::SkinnedDraw::onFrameBegin();
 
     // Update current cell and select distant static set
     selectDistantCell();
@@ -179,6 +185,12 @@ void DistantLand::renderStage1() {
     UINT passes;
 
     ///LOG::logline("Stage 1 prims: %d", recordMW.size());
+
+    // 2c — drain deferred skinned color draws. Runs after all MW DSP2
+    // observer calls have fired (during MW's scene render) and BEFORE the
+    // depth pre-pass / DL render below. Emits one batched DrawIndexedPrimitive
+    // per archetype group via D3D9 hardware instancing.
+    MGE::SkinnedDraw::onSceneEnd();
 
     if (!isRenderCached) {
         // Save state block manually since we can change FVF/decl

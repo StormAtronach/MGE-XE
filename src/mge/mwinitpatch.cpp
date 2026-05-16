@@ -2,6 +2,7 @@
 #include "mge/mwinitpatch.h"
 #include "mge/configuration.h"
 #include "mge/mwbridge.h"
+#include "mge/skinneddraw.h"
 #include "support/timing.h"
 #include <algorithm>
 
@@ -61,4 +62,10 @@ void MWInitPatch::patch() {
 
     // Patch engine issue with light emissive particle material that affects particle rendering
     mwBridge->patchLightParticleMaterialModifier();
+
+    // 2b spike Phase 2 observer hook. Gated by ini flag; pure observation
+    // (vanilla DrawSkinnedPrimitive2 still runs). Off by default.
+    if (Configuration.MeshLevelSkinningSmokeTest) {
+        MGE::SkinnedDraw::installSmokeTestHook();
+    }
 }

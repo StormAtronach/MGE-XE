@@ -2,6 +2,20 @@
 
 #include "proxydx/d3d8device.h"
 
+struct RenderedState;
+struct FragmentState;
+struct LightState;
+
+// Accessors for the captured proxy state. Used by takeover paths (e.g.
+// skinneddraw.cpp's 2b handler) to stage synthetic draws through MGE's
+// renderMorrowind pipeline. Mutating these is safe only between MW-driven
+// captured draws — during a captured draw the proxy is the rightful owner.
+namespace MGEProxyState {
+    RenderedState* getRenderedState();
+    FragmentState* getFragmentState();
+    LightState*    getLightState();
+}
+
 
 
 class MGEProxyDevice : public ProxyDevice {

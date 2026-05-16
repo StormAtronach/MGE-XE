@@ -15,9 +15,35 @@ struct RenderedState {
     DWORD ibBase;
     DWORD fvf;
     DWORD zWrite, cullMode;
-    DWORD vertexBlendState;
+    // numWeights: bone weights per vertex (2/3/4) when skinning, 0 otherwise.
+    // Captured from D3DRS_VERTEXBLEND, translated from the D3DVBF enum at capture time.
+    int numWeights;
+    // usesGlobalPalette: 2b path flag. When true, the FFE shader uses the
+    // global-indexed bonePaletteGlobal[] (selected by per-vertex blend indices)
+    // instead of the positional bonePalette[]. Set by the 2b draw-replacement
+    // handler before invoking ffeshader; defaults false for all 2a-style draws.
+    bool usesGlobalPalette;
+    // bonePaletteGlobal: pointer to the per-mesh bone-matrix palette uploaded
+    // when usesGlobalPalette is set. Each entry is a 4x4 D3DXMATRIX. Owned by
+    // the takeover caller (typically a stack buffer); lifetime must span the
+    // renderMorrowind call. For 2c batched mode this is the MEGA-palette
+    // (N instances × bonesPerInstance, concatenated).
+    const D3DXMATRIX* bonePaletteGlobal;
+    int bonePaletteGlobalCount;
+    // usesBatchedPalette: 2c flag. When true, FFE selects the batched shader
+    // variant and the takeover binds a stream-1 VB with per-instance offsets
+    // + uses D3D9 hardware instancing. Requires usesGlobalPalette also true.
+    bool usesBatchedPalette;
+    // Hardware-instancing parameters (2c batched mode). Stream-1 holds
+    // batchInstances DWORDs of per-instance bone-offset (instanceSlot*bonesPerInstance).
+    IDirect3DVertexBuffer9* batchInstanceVB;
+    IDirect3DVertexDeclaration9* batchVertexDecl;
+    int batchInstances;
+    int batchBonesPerInstance;
     D3DXMATRIX worldTransforms[4];
     D3DXMATRIX viewTransform;
+    // worldViewTransforms slots 0..numWeights-1 hold bone matrices in view space when skinning.
+    // When not skinning, slot 0 is the mesh worldview and slots 1..3 are uninitialized.
     D3DXMATRIX worldViewTransforms[4];
     D3DCOLORVALUE diffuseMaterial;
     BYTE blendEnable, srcBlend, destBlend;
@@ -66,6 +92,17 @@ class FixedFunctionShader {
     struct ShaderKey {
         DWORD uvSets : 4;
         DWORD usesSkinning : 1;
+        // When 1 (and usesSkinning == 1), shader uses the per-mesh indexed
+        // palette (bonePaletteGlobal[] + IN.blendindices) via skinIndexed().
+        // Set by the 2b handler when it has lifted the per-partition cap.
+        // 2a's positional-blend path leaves this 0 (skin() against bonePalette[4]).
+        DWORD usesGlobalPalette : 1;
+        // 2c cross-NPC batched path. When 1 (and usesGlobalPalette == 1),
+        // the shader uses skinIndexedBatched() — adds a per-instance
+        // baseBoneOffset (D3D9 hardware-instancing stream-1 attribute) to
+        // each bone-index lookup. The mega-palette holds N instances of
+        // numBones matrices, each instance addressed by instanceSlot*numBones.
+        DWORD usesBatchedPalette : 1;
         DWORD vertexColour : 1;
         DWORD heavyLighting : 1;
         // When 1, generate the USE_TEXTURE_LIGHTS variant — shader reads
@@ -141,6 +178,16 @@ class FixedFunctionShader {
     // selected count, not the cap).
     static const unsigned int kMaxIndicesPerMesh = 32;
     static IDirect3DTexture9* texLightData;
+
+    // 2c V2 — texture-sampled bone palette for cross-NPC batching.
+    // Width = kMaxBonesInPaletteTex * 4 (4 RGBA32F texels per mat4),
+    // height = 1, format = D3DFMT_A32B32G32R32F, D3DUSAGE_DYNAMIC,
+    // D3DPOOL_DEFAULT. Per-frame LockRect(DISCARD) upload of the mega-
+    // palette built by skinneddraw.cpp's drain. Sampled in vs_3_0 via
+    // tex2Dlod in skinIndexedBatched(). 4096-bone cap = 64KB texture
+    // memory, plenty for 100+ batched bipeds.
+    static const unsigned int kMaxBonesInPaletteTex = 4096;
+    static IDirect3DTexture9* bonePaletteTex;
     // Cached SceneGraph::frameRevision() that's currently in the
     // texture. (uint64_t)-1 sentinel means "never uploaded."
     static uint64_t lastUploadedRevision;
@@ -193,7 +240,9 @@ class FixedFunctionShader {
         D3DXVECTOR3& outMin, D3DXVECTOR3& outMax);
 
     static D3DXHANDLE ehWorld, ehWorldView;
-    static D3DXHANDLE ehVertexBlendState, ehVertexBlendPalette;
+    static D3DXHANDLE ehNumWeights, ehBonePalette;
+    // 2b global-indexed palette uniform (up to 32 bone matrices).
+    static D3DXHANDLE ehBonePaletteGlobal;
     static D3DXHANDLE ehTex0, ehTex1, ehTex2, ehTex3, ehTex4, ehTex5;
     static D3DXHANDLE ehMaterialDiffuse, ehMaterialAmbient, ehMaterialEmissive;
     static D3DXHANDLE ehLightSceneAmbient, ehLightSunDiffuse, ehLightSunDirection;
@@ -201,6 +250,8 @@ class FixedFunctionShader {
     static D3DXHANDLE ehLightFalloffQuadratic, ehLightFalloffLinear, ehLightFalloffConstant;
     // Texture-light path handles
     static D3DXHANDLE ehTexLightData, ehLightDataParams, ehLightIndices, ehTexLightView;
+    // 2c V2 bone-palette texture handles.
+    static D3DXHANDLE ehBonePaletteTex, ehBonePaletteRcpWidth;
     static D3DXHANDLE ehTexgenTransform, ehBumpMatrix, ehBumpLumiScaleBias;
 
     static float sunMultiplier, ambMultiplier;
@@ -213,4 +264,10 @@ public:
     static void updateLighting(float sunMult, float ambMult);
     static void renderMorrowind(const RenderedState* rs, const FragmentState* frs, LightState* lightrs);
     static void release();
+
+    // 2c V2 cross-NPC batching surface — needed by skinneddraw.cpp's drain.
+    // Hoisted to public so the drain can LockRect/UnlockRect the bone-
+    // palette texture directly without round-tripping through an accessor.
+    static IDirect3DTexture9* getBonePaletteTex() { return bonePaletteTex; }
+    static unsigned int       getMaxBonesInPaletteTex() { return kMaxBonesInPaletteTex; }
 };

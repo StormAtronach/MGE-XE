@@ -346,10 +346,16 @@ void DistantLand::renderShadow() {
             effect->SetFloat(ehAlphaRef, -1.0f);
         }
 
-        // Skin using worldview matrices for numerical accuracy
-        effect->SetBool(ehHasBones, i.vertexBlendState != 0);
-        effect->SetInt(ehVertexBlendState, i.vertexBlendState);
-        effect->SetMatrixArray(ehVertexBlendPalette, i.worldViewTransforms, 4);
+        // Skin using worldview matrices for numerical accuracy.
+        // Skinned shapes upload live bone slots; non-skinned shapes route slot 0 to meshWorldview.
+        bool isSkinned = i.numWeights != 0;
+        effect->SetBool(ehHasBones, isSkinned);
+        if (isSkinned) {
+            effect->SetInt(ehNumWeights, i.numWeights);
+            effect->SetMatrixArray(ehBonePalette, i.worldViewTransforms, i.numWeights);
+        } else {
+            effect->SetMatrix(ehMeshWorldview, &i.worldViewTransforms[0]);
+        }
         effect->CommitChanges();
 
         // Ignore two-sided poly (cull none) mode, shadow casters are drawn with CW culling only,

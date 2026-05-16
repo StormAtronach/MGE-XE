@@ -11,11 +11,23 @@
 shared float2 rcpRes;
 shared float shadowRcpRes;
 shared matrix world, view, proj;
+// vertexBlendPalette: scratchpad slot for non-skinning matrices (renderShadowDebug's shadowToCameraProj[2], XE Main.fx shadow lookup).
+// Distinct from the skinning bone palette below.
 shared matrix vertexBlendPalette[4];
 shared matrix shadowViewProj[2];
+// bonePalette: per-draw bone matrices in view space (positional weights, slots 0..numWeights-1).
+//   Used by 2a-style draws: MW captures up to 4 matrices per partition, MGE replays positionally.
+// bonePaletteGlobal: per-MESH bone matrices keyed by GLOBAL bone index (2b path).
+//   Used when the caller has lifted the per-partition cap and supplies the entire skinInstance's
+//   bone palette. Per-vertex blend indices select into this larger table. 32 mat4 = 128 const regs.
+// meshWorldview: per-draw worldview matrix for non-skinned meshes (replaces the historical reuse of vertexBlendPalette[0]).
+shared matrix bonePalette[4];
+shared matrix bonePaletteGlobal[32];
+shared matrix meshWorldview;
 shared bool hasAlpha, hasBones, hasVCol;
 shared float alphaRef, materialAlpha;
-shared int vertexBlendState;
+// numWeights: number of bone weights per vertex (2/3/4). 0 when not skinning. Replaces the D3DRS_VERTEXBLEND enum reuse.
+shared int numWeights;
 
 shared float3 eyePos, footPos;
 shared float3 sunVec, sunVecView, sunCol, sunAmb;
@@ -245,21 +257,124 @@ float4 instancedMul(float4 pos, float4 m0, float4 m1, float4 m2) {
 // Uses worldview matrices for numerical accuracy
 
 float4 skin(float4 pos, float4 blend) {
-    if(vertexBlendState == 1)
+    // Derive the final weight (1 - sum of stored weights) for the highest-index bone,
+    // matching the D3D9 FFP convention. numWeights is the per-vertex bone count (2/3/4).
+    if(numWeights == 2)
         blend[1] = 1 - blend[0];
-    else if(vertexBlendState == 2)
+    else if(numWeights == 3)
         blend[2] = 1 - (blend[0] + blend[1]);
-    else if(vertexBlendState == 3)
+    else if(numWeights == 4)
         blend[3] = 1 - (blend[0] + blend[1] + blend[2]);
 
-    float4 viewpos = mul(pos, vertexBlendPalette[0]) * blend[0];
+    float4 viewpos = mul(pos, bonePalette[0]) * blend[0];
 
-    if(vertexBlendState >= 1)
-        viewpos += mul(pos, vertexBlendPalette[1]) * blend[1];
-    if(vertexBlendState >= 2)
-        viewpos += mul(pos, vertexBlendPalette[2]) * blend[2];
-    if(vertexBlendState >= 3)
-        viewpos += mul(pos, vertexBlendPalette[3]) * blend[3];
+    if(numWeights >= 2)
+        viewpos += mul(pos, bonePalette[1]) * blend[1];
+    if(numWeights >= 3)
+        viewpos += mul(pos, bonePalette[2]) * blend[2];
+    if(numWeights >= 4)
+        viewpos += mul(pos, bonePalette[3]) * blend[3];
+
+    return viewpos;
+}
+
+//------------------------------------------------------------
+// Skinning, per-mesh palette (2b path)
+//
+// Indexed blending against bonePaletteGlobal[]. Each vertex carries its
+// own per-bone indices via IN.blendindices (D3DDECLUSAGE_BLENDINDICES,
+// typically D3DCOLOR-packed 4×UBYTE4 → reinterpreted as float4).
+//
+// The caller (MGE skinneddraw handler) populates bonePaletteGlobal with the
+// full skinInstance bone palette (up to 32 entries) and rewrites each
+// partition's blend-index attribute through partition->bones[] so the
+// per-vertex indices refer into the global table rather than the per-
+// partition local one.
+//
+// numWeights still applies (2/3/4 weights per vertex). The final weight
+// is derived as (1 - sum of stored), matching the D3D9 FFP convention.
+
+float4 skinIndexed(float4 pos, float4 weights, float4 indices) {
+    if(numWeights == 2)
+        weights[1] = 1 - weights[0];
+    else if(numWeights == 3)
+        weights[2] = 1 - (weights[0] + weights[1]);
+    else if(numWeights == 4)
+        weights[3] = 1 - (weights[0] + weights[1] + weights[2]);
+
+    float4 viewpos = mul(pos, bonePaletteGlobal[indices[0]]) * weights[0];
+
+    if(numWeights >= 2)
+        viewpos += mul(pos, bonePaletteGlobal[indices[1]]) * weights[1];
+    if(numWeights >= 3)
+        viewpos += mul(pos, bonePaletteGlobal[indices[2]]) * weights[2];
+    if(numWeights >= 4)
+        viewpos += mul(pos, bonePaletteGlobal[indices[3]]) * weights[3];
+
+    return viewpos;
+}
+
+//------------------------------------------------------------
+// Skinning, per-mesh palette + per-instance offset (cross-NPC batching)
+//
+// 2c V2 — VTF (vertex texture fetch) replacement of the const-register
+// batched path. The mega-palette is uploaded each frame as a 1D dynamic
+// RGBA32F texture (4 texels per mat4); sampled in vs_3_0 via tex2Dlod.
+// Sidesteps SM3's 256 const-register budget — batch size is now bounded
+// only by texture width.
+//
+// Stream 1 carries one FLOAT per instance = `instanceSlot * numBones`,
+// supplied via D3D9 hardware instancing. Shader adds it to each per-vertex
+// bone index before reconstructing the matrix from the texture.
+//
+// Texture layout: width = bonePaletteTexWidth (= 4 * maxBones), height = 1.
+// Each mat4 occupies 4 consecutive texels (rows 0..3 of the matrix).
+// `bonePaletteRcpWidth` = 1.0 / width, set per-frame from C++.
+//
+// Sampler declared with POINT filter + CLAMP addressing so adjacent matrix
+// rows don't bleed and out-of-range indices clamp instead of wrapping.
+
+shared texture bonePaletteTex;
+shared float bonePaletteRcpWidth;
+sampler BonePaletteSampler = sampler_state {
+    texture   = <bonePaletteTex>;
+    MinFilter = POINT;
+    MagFilter = POINT;
+    MipFilter = NONE;
+    AddressU  = CLAMP;
+    AddressV  = CLAMP;
+};
+
+float4x4 sampleBoneMatrix(float boneIdx) {
+    // Each matrix = 4 consecutive texels at u = (boneIdx*4 + row + 0.5) * rcpWidth.
+    // Strength-reduce: compute u0 once, derive u1/u2/u3 by adding rcpWidth.
+    float u0 = (boneIdx * 4.0 + 0.5) * bonePaletteRcpWidth;
+    float u1 = u0 + bonePaletteRcpWidth;
+    float u2 = u0 + 2.0 * bonePaletteRcpWidth;
+    float u3 = u0 + 3.0 * bonePaletteRcpWidth;
+    float4 r0 = tex2Dlod(BonePaletteSampler, float4(u0, 0.5, 0, 0));
+    float4 r1 = tex2Dlod(BonePaletteSampler, float4(u1, 0.5, 0, 0));
+    float4 r2 = tex2Dlod(BonePaletteSampler, float4(u2, 0.5, 0, 0));
+    float4 r3 = tex2Dlod(BonePaletteSampler, float4(u3, 0.5, 0, 0));
+    return float4x4(r0, r1, r2, r3);
+}
+
+float4 skinIndexedBatched(float4 pos, float4 weights, float4 indices, float baseBoneOffset) {
+    if(numWeights == 2)
+        weights[1] = 1 - weights[0];
+    else if(numWeights == 3)
+        weights[2] = 1 - (weights[0] + weights[1]);
+    else if(numWeights == 4)
+        weights[3] = 1 - (weights[0] + weights[1] + weights[2]);
+
+    float4 viewpos = mul(pos, sampleBoneMatrix(indices[0] + baseBoneOffset)) * weights[0];
+
+    if(numWeights >= 2)
+        viewpos += mul(pos, sampleBoneMatrix(indices[1] + baseBoneOffset)) * weights[1];
+    if(numWeights >= 3)
+        viewpos += mul(pos, sampleBoneMatrix(indices[2] + baseBoneOffset)) * weights[2];
+    if(numWeights >= 4)
+        viewpos += mul(pos, sampleBoneMatrix(indices[3] + baseBoneOffset)) * weights[3];
 
     return viewpos;
 }

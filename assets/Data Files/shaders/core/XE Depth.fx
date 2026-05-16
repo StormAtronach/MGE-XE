@@ -37,7 +37,7 @@ DepthVertOut DepthMWVS(MorrowindVertIn IN) {
     if(hasBones)
         viewpos = skin(IN.pos, IN.blendweights);
     else
-        viewpos = mul(IN.pos, vertexBlendPalette[0]);
+        viewpos = mul(IN.pos, meshWorldview);
 
     // Fragment colour routing
     OUT.alpha = vertexMaterial(IN.color).a;

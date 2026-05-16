@@ -39,8 +39,8 @@ TransformedVert transformShadowVert(MorrowindVertIn IN) {
         v.normal = normalize(skin(normal, IN.blendweights));
     }
     else {
-        v.viewpos = mul(IN.pos, vertexBlendPalette[0]);
-        v.normal = mul(normal, vertexBlendPalette[0]);
+        v.viewpos = mul(IN.pos, meshWorldview);
+        v.normal = mul(normal, meshWorldview);
     }
 
     v.pos = mul(v.viewpos, proj);

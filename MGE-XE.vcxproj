@@ -142,6 +142,7 @@
     <ClCompile Include="src\mge\rendergrass.cpp" />
     <ClCompile Include="src\mge\rendershadow.cpp" />
     <ClCompile Include="src\mge\scenegraph.cpp" />
+    <ClCompile Include="src\mge\skinneddraw.cpp" />
     <ClCompile Include="src\mge\renderwater.cpp" />
     <ClCompile Include="src\mge\specificrender.cpp" />
     <ClCompile Include="src\mge\statusoverlay.cpp" />

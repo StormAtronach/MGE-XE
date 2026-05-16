@@ -21,19 +21,22 @@ unordered_map<FixedFunctionShader::ShaderKey, ID3DXEffect*, FixedFunctionShader:
 FixedFunctionShader::ShaderLRU FixedFunctionShader::shaderLRU;
 ID3DXEffect* FixedFunctionShader::effectDefaultPurple;
 IDirect3DTexture9* FixedFunctionShader::texLightData = nullptr;
+IDirect3DTexture9* FixedFunctionShader::bonePaletteTex = nullptr;
 uint64_t FixedFunctionShader::lastUploadedRevision = (uint64_t)-1;
 unsigned int FixedFunctionShader::lastUploadedPointCount = 0;
 std::unordered_map<FixedFunctionShader::MeshKey, FixedFunctionShader::ObjectSpaceBBox,
                    FixedFunctionShader::MeshKeyHash> FixedFunctionShader::bboxCache;
 
 D3DXHANDLE FixedFunctionShader::ehWorld, FixedFunctionShader::ehWorldView;
-D3DXHANDLE FixedFunctionShader::ehVertexBlendState, FixedFunctionShader::ehVertexBlendPalette;
+D3DXHANDLE FixedFunctionShader::ehNumWeights, FixedFunctionShader::ehBonePalette;
+D3DXHANDLE FixedFunctionShader::ehBonePaletteGlobal;
 D3DXHANDLE FixedFunctionShader::ehTex0, FixedFunctionShader::ehTex1, FixedFunctionShader::ehTex2, FixedFunctionShader::ehTex3, FixedFunctionShader::ehTex4, FixedFunctionShader::ehTex5;
 D3DXHANDLE FixedFunctionShader::ehMaterialDiffuse, FixedFunctionShader::ehMaterialAmbient, FixedFunctionShader::ehMaterialEmissive;
 D3DXHANDLE FixedFunctionShader::ehLightSceneAmbient, FixedFunctionShader::ehLightSunDiffuse, FixedFunctionShader::ehLightDiffuse;
 D3DXHANDLE FixedFunctionShader::ehLightSunDirection, FixedFunctionShader::ehLightPosition, FixedFunctionShader::ehLightAmbient;
 D3DXHANDLE FixedFunctionShader::ehLightFalloffQuadratic, FixedFunctionShader::ehLightFalloffLinear, FixedFunctionShader::ehLightFalloffConstant;
 D3DXHANDLE FixedFunctionShader::ehTexLightData, FixedFunctionShader::ehLightDataParams, FixedFunctionShader::ehLightIndices, FixedFunctionShader::ehTexLightView;
+D3DXHANDLE FixedFunctionShader::ehBonePaletteTex, FixedFunctionShader::ehBonePaletteRcpWidth;
 D3DXHANDLE FixedFunctionShader::ehTexgenTransform, FixedFunctionShader::ehBumpMatrix, FixedFunctionShader::ehBumpLumiScaleBias;
 
 float FixedFunctionShader::sunMultiplier, FixedFunctionShader::ambMultiplier;
@@ -64,8 +67,9 @@ bool FixedFunctionShader::init(IDirect3DDevice* d, ID3DXEffectPool* pool) {
 
     // Use it to bind shared parameters too
     ehWorld = effect->GetParameterByName(0, "world");
-    ehVertexBlendState = effect->GetParameterByName(0, "vertexBlendState");
-    ehVertexBlendPalette = effect->GetParameterByName(0, "vertexBlendPalette");
+    ehNumWeights = effect->GetParameterByName(0, "numWeights");
+    ehBonePalette = effect->GetParameterByName(0, "bonePalette");
+    ehBonePaletteGlobal = effect->GetParameterByName(0, "bonePaletteGlobal");
     ehTex0 = effect->GetParameterByName(0, "tex0");
     ehTex1 = effect->GetParameterByName(0, "tex1");
     ehTex2 = effect->GetParameterByName(0, "tex2");
@@ -90,6 +94,8 @@ bool FixedFunctionShader::init(IDirect3DDevice* d, ID3DXEffectPool* pool) {
     ehLightDataParams = effect->GetParameterByName(0, "lightDataParams");
     ehLightIndices = effect->GetParameterByName(0, "lightIndices");
     ehTexLightView = effect->GetParameterByName(0, "texLightView");
+    ehBonePaletteTex      = effect->GetParameterByName(0, "bonePaletteTex");
+    ehBonePaletteRcpWidth = effect->GetParameterByName(0, "bonePaletteRcpWidth");
     ehTexgenTransform = effect->GetParameterByName(0, "texgenTransform");
     ehBumpMatrix = effect->GetParameterByName(0, "bumpMatrix");
     ehBumpLumiScaleBias = effect->GetParameterByName(0, "bumpLumiScaleBias");
@@ -123,6 +129,28 @@ bool FixedFunctionShader::init(IDirect3DDevice* d, ID3DXEffectPool* pool) {
     }
     lastUploadedRevision = (unsigned int)-1;
     lastUploadedPointCount = 0;
+
+    // 2c V2 — bone palette texture. Mirrors texLightData's allocation
+    // pattern: 1D RGBA32F, DYNAMIC, DEFAULT pool, LockRect(DISCARD) per
+    // frame. Width = 4 texels per mat4 × kMaxBonesInPaletteTex bones.
+    // 64KB total at 4096 bones; enough for 100+ batched bipeds.
+    if (bonePaletteTex) {
+        bonePaletteTex->Release();
+        bonePaletteTex = nullptr;
+    }
+    {
+        const UINT texW = 4 * kMaxBonesInPaletteTex;
+        HRESULT thr = device->CreateTexture(texW, 1, 1,
+            D3DUSAGE_DYNAMIC, D3DFMT_A32B32G32R32F,
+            D3DPOOL_DEFAULT, &bonePaletteTex, nullptr);
+        if (thr != D3D_OK) {
+            LOG::logline("!! FFE bone palette texture create failed: 0x%08x", (unsigned)thr);
+            bonePaletteTex = nullptr;
+        } else {
+            LOG::logline("-- FFE bone palette texture created: %ux1, %u bones * 4 texels",
+                         texW, kMaxBonesInPaletteTex);
+        }
+    }
     // _Claude_ Bbox cache is keyed by D3D resource pointers; pointers
     // become invalid after device reset, so wipe.
     bboxCache.clear();
@@ -763,12 +791,45 @@ void FixedFunctionShader::renderMorrowind(const RenderedState* rs, const Fragmen
     }
 
     // Set common state and render
-    effectFFE->SetInt(ehVertexBlendState, rs->vertexBlendState);
-    if (rs->vertexBlendState) {
-        effectFFE->SetMatrixArray(ehVertexBlendPalette, rs->worldViewTransforms, 4);
+    effectFFE->SetInt(ehNumWeights, rs->numWeights);
+    if (rs->numWeights) {
+        effectFFE->SetMatrixArray(ehBonePalette, rs->worldViewTransforms, rs->numWeights);
+        // 2b path: also upload the per-mesh global palette when the takeover
+        // provided one. The shader picks the indexed variant via the
+        // usesGlobalPalette ShaderKey bit (set in ShaderKey ctor from
+        // rs->usesGlobalPalette) and reads bonePaletteGlobal[blendindices[i]]
+        // instead of bonePalette[i].
+        if (rs->usesGlobalPalette && rs->bonePaletteGlobal && rs->bonePaletteGlobalCount > 0) {
+            effectFFE->SetMatrixArray(
+                ehBonePaletteGlobal,
+                rs->bonePaletteGlobal,
+                rs->bonePaletteGlobalCount);
+        }
     } else {
         effectFFE->SetMatrix(ehWorld, &rs->worldTransforms[0]);
         effectFFE->SetMatrix(ehWorldView, &rs->worldViewTransforms[0]);
+    }
+
+    // 2c V2 — batched draw setup. Stream 0 is bound by the caller
+    // (shared synth VB); stream 1 carries the per-instance baseBoneOffset
+    // attribute via D3D9 hardware instancing. The mega-palette lives in
+    // bonePaletteTex (1D RGBA32F dynamic), bound + width-uniform pushed
+    // here. The skinIndexedBatched HLSL function samples it via
+    // tex2Dlod in vs_3_0, sidestepping SM3's const-register budget.
+    if (rs->usesBatchedPalette && rs->batchInstanceVB && rs->batchVertexDecl
+        && rs->batchInstances > 0)
+    {
+        device->SetStreamSourceFreq(0, D3DSTREAMSOURCE_INDEXEDDATA | rs->batchInstances);
+        device->SetStreamSourceFreq(1, D3DSTREAMSOURCE_INSTANCEDATA | 1u);
+        device->SetStreamSource(1, rs->batchInstanceVB, 0, sizeof(float));
+        device->SetVertexDeclaration(rs->batchVertexDecl);
+        if (ehBonePaletteTex && bonePaletteTex) {
+            effectFFE->SetTexture(ehBonePaletteTex, bonePaletteTex);
+        }
+        if (ehBonePaletteRcpWidth) {
+            const float rcpWidth = 1.0f / (float)(4u * kMaxBonesInPaletteTex);
+            effectFFE->SetFloat(ehBonePaletteRcpWidth, rcpWidth);
+        }
     }
 
     UINT passes;
@@ -777,6 +838,17 @@ void FixedFunctionShader::renderMorrowind(const RenderedState* rs, const Fragmen
     device->DrawIndexedPrimitive(rs->primType, rs->baseIndex, rs->minIndex, rs->vertCount, rs->startIndex, rs->primCount);
     effectFFE->EndPass();
     effectFFE->End();
+
+    // 2c — reset instancing freq + unbind stream 1 so subsequent FFP draws
+    // aren't confused. D3D9 keeps the freq state across draws.
+    if (rs->usesBatchedPalette && rs->batchInstanceVB && rs->batchVertexDecl
+        && rs->batchInstances > 0)
+    {
+        device->SetStreamSourceFreq(0, 1);
+        device->SetStreamSourceFreq(1, 1);
+        device->SetStreamSource(1, nullptr, 0, 0);
+        device->SetVertexDeclaration(nullptr);
+    }
 
     device->SetVertexShader(NULL);
     device->SetPixelShader(NULL);
@@ -922,6 +994,19 @@ ID3DXEffect* FixedFunctionShader::generateMWShader(const ShaderKey& sk) {
 
     if (sk.usesSkinning) {
         buf << "float4 blendweights : BLENDWEIGHT; ";
+        if (sk.usesGlobalPalette) {
+            // 2b path adds a per-vertex bone-index attribute, mapped through
+            // partition->bones[] by the handler so it indexes into the
+            // global-mesh bonePaletteGlobal[].
+            buf << "float4 blendindices : BLENDINDICES; ";
+        }
+        if (sk.usesBatchedPalette) {
+            // 2c — D3D9 hardware instancing per-instance attribute. Stream-1
+            // delivers one FLOAT1 per instance = baseBoneOffset
+            // (instanceSlot × bonesPerInstance). Shader adds it to each bone
+            // index before the bonePaletteGlobal lookup.
+            buf << "float baseBoneOffset : TEXCOORD7; ";
+        }
     }
     if (sk.vertexColour) {
         buf << "float4 col : COLOR; ";
@@ -955,7 +1040,15 @@ ID3DXEffect* FixedFunctionShader::generateMWShader(const ShaderKey& sk) {
     buf.str(string());
 
     if (sk.usesSkinning) {
-        buf << "viewpos = skinnedVertex(IN.pos, IN.blendweights); normal = skinnedNormal(IN.nrm, IN.blendweights);";
+        if (sk.usesBatchedPalette) {
+            buf << "viewpos = skinnedVertexIndexedBatched(IN.pos, IN.blendweights, IN.blendindices, IN.baseBoneOffset); "
+                   "normal = skinnedNormalIndexedBatched(IN.nrm, IN.blendweights, IN.blendindices, IN.baseBoneOffset);";
+        } else if (sk.usesGlobalPalette) {
+            buf << "viewpos = skinnedVertexIndexed(IN.pos, IN.blendweights, IN.blendindices); "
+                   "normal = skinnedNormalIndexed(IN.nrm, IN.blendweights, IN.blendindices);";
+        } else {
+            buf << "viewpos = skinnedVertex(IN.pos, IN.blendweights); normal = skinnedNormal(IN.nrm, IN.blendweights);";
+        }
     } else {
         buf << "viewpos = rigidVertex(IN.pos); normal = rigidNormal(IN.nrm);";
     }
@@ -1258,6 +1351,10 @@ void FixedFunctionShader::release() {
         texLightData->Release();
         texLightData = nullptr;
     }
+    if (bonePaletteTex) {
+        bonePaletteTex->Release();
+        bonePaletteTex = nullptr;
+    }
     lastUploadedRevision = (unsigned int)-1;
     lastUploadedPointCount = 0;
     bboxCache.clear();
@@ -1385,7 +1482,11 @@ FixedFunctionShader::ShaderKey::ShaderKey(const RenderedState* rs, const Fragmen
     memset(this, 0, sizeof(ShaderKey));         // Clear padding bits for compares
 
     uvSets = (rs->fvf & D3DFVF_TEXCOUNT_MASK) >> D3DFVF_TEXCOUNT_SHIFT;
-    usesSkinning = rs->vertexBlendState ? 1 : 0;
+    usesSkinning = rs->numWeights ? 1 : 0;
+    // 2b global-indexed palette only meaningful when actually skinning.
+    usesGlobalPalette = (usesSkinning && rs->usesGlobalPalette) ? 1 : 0;
+    // 2c batched palette requires the global path (subset).
+    usesBatchedPalette = (usesGlobalPalette && rs->usesBatchedPalette) ? 1 : 0;
     vertexColour = (rs->fvf & D3DFVF_DIFFUSE) ? 1 : 0;
 
     // Match constant material, diffuse+ambient vcol, or emissive vcol

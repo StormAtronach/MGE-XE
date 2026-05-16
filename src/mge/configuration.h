@@ -113,6 +113,9 @@ struct ConfigurationStruct {
     bool LogDistantPipeline;        // gate per-frame diagnostic loglines + phase-timer reports + Numpad-5 mask dump
     bool UseSceneGraphSnapshot;     // enable MGE-side per-frame scene-graph walk (drives the texture-light variant of FFE)
     bool UseAsyncSceneGraphWalk;    // sub-flag: run the scene-graph walk on a worker thread; main signals at onFrameReady and returns immediately. Snapshot is one frame stale. Default off; on hides the ~350µs walk from the main-thread frame budget.
+    bool MeshLevelSkinningSmokeTest; // 2b spike Phase 2: install observer hook on NiDX8Renderer::DrawSkinnedPrimitive2 that builds the per-mesh bone palette and logs it for runtime comparison against MW's per-partition writes. Default off; pure observation, doesn't change MW's draw path.
+    bool MeshLevelSkinning;          // 2b real feature flag: when set (AND smoke-test hook installed), the observer becomes a draw-replacement handler. Currently incomplete (suppress-only). Default off.
+    bool MeshLevelSkinningBatch;     // 2c V2: cross-NPC batching via D3D9 hardware instancing + texture-sampled bone palette (VTF). Defers single-partition skinned color draws to onSceneEnd(), groups by NiSkinPartition::Partition*, emits one DrawIndexedPrimitive per group. Requires MeshLevelSkinning. Modern hardware only (vs_3_0 VTF). Default off.
 
     struct {
         float zoom, zoomRate, zoomRateTarget;

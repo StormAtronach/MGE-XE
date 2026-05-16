@@ -158,7 +158,10 @@ public:
     static D3DXHANDLE ehRcpRes, ehShadowRcpRes;
     static D3DXHANDLE ehWorld, ehView, ehProj;
     static D3DXHANDLE ehShadowViewproj;
-    static D3DXHANDLE ehVertexBlendState, ehVertexBlendPalette;
+    // ehVertexBlendPalette: scratchpad matrix slot (renderShadowDebug shadowToCameraProj[2]).
+    // ehBonePalette / ehNumWeights / ehMeshWorldview: bone-skinning interface used by depth + shadow replay.
+    static D3DXHANDLE ehVertexBlendPalette;
+    static D3DXHANDLE ehNumWeights, ehBonePalette, ehMeshWorldview;
     static D3DXHANDLE ehAlphaRef, ehMaterialAlpha;
     static D3DXHANDLE ehHasAlpha, ehHasBones, ehHasVCol;
     static D3DXHANDLE ehTex0, ehTex1, ehTex2, ehTex3, ehTex4, ehTex5;
