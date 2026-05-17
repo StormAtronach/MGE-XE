@@ -52,11 +52,14 @@ void report() {
                      static_cast<unsigned long long>(avg));
     }
 
-    // Reset every bucket for the next sampling window. Using clear()
-    // would drop the string-pointer keys and re-hash next call; erase-
-    // in-place with zero is slightly nicer (preserves allocator state),
-    // but clear is simpler and the overhead is negligible.
-    g_buckets.clear();
+    // Zero every bucket in place for the next sampling window. The
+    // string-literal keys are stable across the program's lifetime, so
+    // keeping the map entries (and their hashed slots) avoids per-
+    // window allocator churn. clear() would deallocate the keys'
+    // hash slots and force re-insertion next call.
+    for (auto& kv : g_buckets) {
+        kv.second = Bucket{};
+    }
 }
 
 } // namespace MGEPhaseTimers

@@ -68,6 +68,7 @@ bool                    g_horizonInitialized = false;
 
 // renderSky - Render atmosphere scattering sky layer and other recorded draw calls on top
 void DistantLand::renderSky() {
+    MGE_SCOPED_TIMER("renderSky");
     // Recorded renders
     const auto& recordSky_const = recordSky;
     const int standardCloudVerts = 65, standardCloudTris = 112;
@@ -472,7 +473,9 @@ void DistantLand::shutdownHorizonWorkspace() {
 }
 
 void DistantLand::renderDistantLandZ() {
-    MGE_SCOPED_TIMER("renderDistantLandZ");
+    // Always nested inside renderDepth:land — the only caller. Timer
+    // name reflects the hierarchy.
+    MGE_SCOPED_TIMER("renderDepth:land:render");
     D3DXMATRIX world;
 
     D3DXMatrixIdentity(&world);
@@ -670,7 +673,10 @@ void DistantLand::renderDistantStatics() {
 // final per-instance cull decision.
 template<class T>
 void DistantLand::applyMSOCToDistantStatics(VisibleSet<T>& staticSet) {
-    MGE_SCOPED_TIMER("applyMSOCToDistantStatics");
+    // Always nested inside cullDistantStatics:finish — the only caller.
+    // Timer name reflects that hierarchy so the sorted [PHASE] log block
+    // reads as a tree. (Function name kept unchanged for symbol clarity.)
+    MGE_SCOPED_TIMER("cullDistantStatics:apply");
 
     msocOccluded.clear();
     if (staticSet.Empty()) {
@@ -735,7 +741,7 @@ void DistantLand::applyMSOCToDistantStatics(VisibleSet<T>& staticSet) {
     sphereScratch.reserve(setSize * 4);
     verdictScratch.resize(setSize, MSOCClient::ResultVisible);
     {
-        MGE_SCOPED_TIMER("applyMSOCToDistantStatics:sphereBatch");
+        MGE_SCOPED_TIMER("cullDistantStatics:apply:sphereBatch");
         staticSet.Reset();
         while (!staticSet.AtEnd()) {
             const auto& m = staticSet.Next();
@@ -753,6 +759,14 @@ void DistantLand::applyMSOCToDistantStatics(VisibleSet<T>& staticSet) {
     int diagOBBCalls = 0, diagOBBOccluded = 0;
     int diagHandoffSpared = 0, diagFarSpared = 0, diagHysteresisSpared = 0;
 
+    // Per-instance verdict loop — the work remaining after sphereBatch
+    // returned. Includes OBB escalation (disabled today), far/handoff
+    // gates, hysteresis lookup + state update. The sum of sphereBatch
+    // + this verdict scope should equal cullDistantStatics:apply
+    // (modulo tiny pre-loop scratch resets); previously this was
+    // implicit "apply - sphereBatch = ~113µs" arithmetic, now explicit.
+    {
+    MGE_SCOPED_TIMER("cullDistantStatics:apply:verdict");
     staticSet.Reset();
     unsigned idx = 0;
     while (!staticSet.AtEnd()) {
@@ -852,6 +866,7 @@ void DistantLand::applyMSOCToDistantStatics(VisibleSet<T>& staticSet) {
         }
         ++idx;
     }
+    } // end cullDistantStatics:apply:verdict scope
 
     // Hysteresis age-prune. Drop entries not touched in the last
     // kHysteresisAgeOutFrames frames. Run once per 60 frames so per-

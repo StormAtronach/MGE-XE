@@ -4,11 +4,13 @@
 #include "configuration.h"
 #include "doublesurface.h"
 #include "mwbridge.h"
+#include "phasetimers.h"
 #include "postshaders.h"
 
 
 
 void DistantLand::renderWaterReflection(const D3DXMATRIX* view, const D3DXMATRIX* proj) {
+    MGE_SCOPED_TIMER("renderWaterReflection");
     auto mwBridge = MWBridge::get();
 
     // Switch to render target

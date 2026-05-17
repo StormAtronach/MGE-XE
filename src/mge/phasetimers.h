@@ -16,6 +16,35 @@
 // Everything lives in two files and is grep-visible via the
 // MGE_SCOPED_TIMER / MGEPhaseTimers tokens, so the instrumentation
 // can be removed cleanly if it's ever no longer needed.
+//
+// ---- Naming convention (read this before adding a new timer) ----
+// Use `parent:child[:grandchild...]` to reflect static call nesting,
+// so the sorted log block reads as a hierarchy at a glance.
+//
+//   MGE_SCOPED_TIMER("renderDepth");                    // umbrella
+//     MGE_SCOPED_TIMER("renderDepth:statics");          // sub-phase
+//       MGE_SCOPED_TIMER("renderDepth:statics:foo");    // sub-sub
+//
+// If a function that ALWAYS runs inside another timed scope has its
+// own timer, name it using the parent's prefix — not its function
+// name — so the log shows the relationship. Example: applyMSOC...
+// is called only from cullDistantStatics:finish, so its timer is
+// "cullDistantStatics:apply", not "applyMSOCToDistantStatics".
+//
+// ---- Constraints ----
+//
+//   1. MAIN THREAD ONLY. g_buckets is not synchronized. If you ever
+//      add a timer to a worker-thread scope (IPC server, async
+//      scenegraph walk, MSOC worker — none today), wrap g_buckets
+//      access in a mutex first or use thread-local accumulators.
+//
+//   2. NAME MUST BE A STRING LITERAL. The bucket map is keyed by
+//      `const char*` pointer identity (assumes linker literal pool).
+//      Passing std::string::c_str() or any dynamically-built buffer
+//      will silently corrupt buckets.
+//
+//   3. NO RECURSION. If a timer's scope re-enters itself (direct or
+//      via mutual recursion), elapsed times double-count.
 
 #include <chrono>
 #include <cstdint>
@@ -53,6 +82,8 @@ struct MGEScopedTimer {
 
 #define MGE_TIMER_CONCAT_INNER(a, b) a##b
 #define MGE_TIMER_CONCAT(a, b) MGE_TIMER_CONCAT_INNER(a, b)
-// Concatenating with __LINE__ lets multiple timers live in the same
-// function without colliding on the variable name.
-#define MGE_SCOPED_TIMER(name) MGEScopedTimer MGE_TIMER_CONCAT(_mgePhaseTimer_, __LINE__)(name)
+// __COUNTER__ (MSVC + GCC + clang) gives a monotonically-increasing
+// unique integer per macro expansion, so two timers on the same line
+// (possible via macro expansion or one-liner constructs) don't collide
+// on the variable name like they would with __LINE__.
+#define MGE_SCOPED_TIMER(name) MGEScopedTimer MGE_TIMER_CONCAT(_mgePhaseTimer_, __COUNTER__)(name)

@@ -3,6 +3,7 @@
 #include "support/log.h"
 #include "configuration.h"
 #include "mwbridge.h"
+#include "phasetimers.h"
 #include "postshaders.h"
 
 #include <algorithm>
@@ -522,6 +523,8 @@ PostShaders::HDRReadbackState hdrState = PostShaders::HDR_IDLE;
 float lastLuminance = 0.5f;  // Default middle gray
 
 void PostShaders::evalAdaptHDR(IDirect3DSurface9* source, int environmentFlags, float dt) {
+    // Always nested inside postShaderChain (shaderTime is the only caller).
+    MGE_SCOPED_TIMER("postShaderChain:adaptHDR");
     // Handle the readback state machine
     switch (hdrState) {
     case HDR_IDLE:
@@ -599,6 +602,7 @@ void PostShaders::evalAdaptHDR(IDirect3DSurface9* source, int environmentFlags, 
 
 // shaderTime - Applies all post processing shaders for the current frame
 void PostShaders::shaderTime(MGEShaderUpdateFunc updateVarsFunc, int environmentFlags, float frameTime) {
+    MGE_SCOPED_TIMER("postShaderChain");
 
     if (isLoading.load()) {
         return; // Skip rendering this frame if still loading
@@ -702,6 +706,9 @@ IDirect3DTexture9* PostShaders::borrowBuffer(int n) {
 
 // applyBlend - Utility function for distant land to render a full-screen shader
 void PostShaders::applyBlend() {
+    // Called from distantland.cpp's water-caustics and MW/MGE-blend
+    // passes. Sibling phase to postShaderChain (not nested inside it).
+    MGE_SCOPED_TIMER("postBlend");
     // Render with vertex shader by using a different FVF for the same buffer
     device->SetFVF(fvfBlend);
     device->SetStreamSource(0, vbPost, 0, 32);

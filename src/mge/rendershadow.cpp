@@ -240,7 +240,10 @@ void DistantLand::renderShadowLayer(int layer, float radius, const D3DXMATRIX* i
     // stencil pass + caster render. In IPC mode the cull cost overlaps
     // with rendering via parallelRead, so splitting cull from render
     // wouldn't be meaningful — one timer per cascade is the right grain.
-    MGE_SCOPED_TIMER(layer == 0 ? "renderShadowLayer:c0" : "renderShadowLayer:c1");
+    // Always nested inside renderShadowMap — the only caller. Both
+    // literals are pooled into .rdata so the ternary is safe under
+    // the pointer-identity bucket-keying.
+    MGE_SCOPED_TIMER(layer == 0 ? "renderShadowMap:layer:c0" : "renderShadowMap:layer:c1");
     auto mwBridge = MWBridge::get();
     D3DXVECTOR3 lookAt, lookAtEye, shadowCameraPos, up(0, 0, 1);
     D3DXMATRIX* view = &smView[layer], *proj = &smProj[layer], *viewproj = &smViewproj[layer];

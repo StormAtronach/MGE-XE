@@ -144,7 +144,8 @@ void DistantLand::renderGrassInst() {
 
 // renderGrassInstZ - Z only pass
 void DistantLand::renderGrassInstZ() {
-    MGE_SCOPED_TIMER("renderGrassInstZ");
+    // Always nested inside renderDepth:grass — the only caller.
+    MGE_SCOPED_TIMER("renderDepth:grass:render");
     if (!hasVisibleGrass()) {
         return;
     }
