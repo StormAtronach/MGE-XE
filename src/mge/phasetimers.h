@@ -26,10 +26,13 @@
 //       MGE_SCOPED_TIMER("renderDepth:statics:foo");    // sub-sub
 //
 // If a function that ALWAYS runs inside another timed scope has its
-// own timer, name it using the parent's prefix — not its function
-// name — so the log shows the relationship. Example: applyMSOC...
-// is called only from cullDistantStatics:finish, so its timer is
-// "cullDistantStatics:apply", not "applyMSOCToDistantStatics".
+// own timer, name it using the parent's full prefix — not its function
+// name — so the log shows the relationship. Example:
+// applyMSOCToDistantStatics is called only from cullDistantStatics_finish,
+// so its timer is "cullDistantStatics:finish:apply", NOT
+// "applyMSOCToDistantStatics" (loses hierarchy) and NOT
+// "cullDistantStatics:apply" (puts apply as sibling of finish instead
+// of nested inside it).
 //
 // ---- Constraints ----
 //
