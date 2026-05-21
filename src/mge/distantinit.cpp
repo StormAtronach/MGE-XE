@@ -202,10 +202,20 @@ static void captureLandMesh(
     // Extract POSITION float3 from each vertex. Stride is SIZEOFLANDVERT
     // (16 bytes: 12 position + 4 texcoord); position is at offset 0.
     const auto* vbytes = static_cast<const char*>(vbBytes);
+    double sumX = 0.0, sumY = 0.0;
     for (unsigned i = 0; i < verts; ++i) {
         const auto* pos = reinterpret_cast<const float*>(vbytes + i * SIZEOFLANDVERT);
         entry.positions[i] = D3DXVECTOR3(pos[0], pos[1], pos[2]);
+        sumX += pos[0];
+        sumY += pos[1];
     }
+
+    // Owning cell from the world-space centroid (positions are world-space;
+    // land renders with an identity world matrix). floor, not truncation,
+    // because Morrowind cell coordinates go negative.
+    const double invVerts = 1.0 / static_cast<double>(verts);
+    entry.cellX = static_cast<int>(std::floor(sumX * invVerts / DistantLand::kCellSize));
+    entry.cellY = static_cast<int>(std::floor(sumY * invVerts / DistantLand::kCellSize));
 
     // Promote indices to uint32. For the small-tile path (16-bit
     // indices), widen in-place as we copy.

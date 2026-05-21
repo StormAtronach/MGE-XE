@@ -296,6 +296,7 @@ void DistantLand::contributeDistantLandOccluders() {
     int verticesFed = 0;
     int columnsUpdated = 0;
     int columnsPruned = 0;
+    int tilesDroppedByCell = 0;
 
     // Per-tile column scratch. Sized to the horizon resolution so any
     // tile, however wide, fits without resizing. Reset per tile by only
@@ -312,6 +313,14 @@ void DistantLand::contributeDistantLandOccluders() {
 
     const float halfSpan = 0.5f * (float)(kHorizonResolution - 1);
 
+    // Terrain occluder cap: drop tiles farther than OcclusionTerrainMaxCells
+    // from the player's cell, tested O(1) against the cell index cached at
+    // capture. Cheap replacement for deriving cell membership from the ROAM
+    // geometry per frame (no cheap cell decomposition -> that was the cost).
+    const int maxCells = Configuration.OcclusionTerrainMaxCells;
+    const int playerCellX = (int)floorf(eyePos.x / kCellSize);
+    const int playerCellY = (int)floorf(eyePos.y / kCellSize);
+
     auto feedTile = [&](const RenderMesh& m) {
         ++visibleLandTiles;
         auto it = landMeshes.find(m.vBuffer);
@@ -321,6 +330,18 @@ void DistantLand::contributeDistantLandOccluders() {
         }
         const LandMeshCache& mesh = it->second;
         if (mesh.positions.empty()) return;
+
+        // Cap by Chebyshev cell distance, before the per-vertex projection.
+        // cellX/Y is the tile centroid's cell, so a tile straddling the cap
+        // boundary is kept or dropped as a whole.
+        const int dcx = mesh.cellX - playerCellX;
+        const int dcy = mesh.cellY - playerCellY;
+        const int adcx = dcx < 0 ? -dcx : dcx;
+        const int adcy = dcy < 0 ? -dcy : dcy;
+        if ((adcx > adcy ? adcx : adcy) > maxCells) {
+            ++tilesDroppedByCell;
+            return;
+        }
 
         tileTouchedCols.clear();
 
@@ -450,9 +471,9 @@ void DistantLand::contributeDistantLandOccluders() {
 
     static int diagFrameCounter = 0;
     if (Configuration.LogDistantPipeline && (diagFrameCounter++ % 60) == 0) {
-        LOG::logline("-- MSOC occluder: horizon %s — tiles=%d verts=%d colsUpdated=%d colsPruned=%d samples=%d curtainTris=%d",
+        LOG::logline("-- MSOC occluder: horizon %s - tiles=%d droppedByCell=%d verts=%d colsUpdated=%d colsPruned=%d samples=%d curtainTris=%d",
                      ok ? "submitted" : "REJECTED",
-                     visibleLandTiles, verticesFed,
+                     visibleLandTiles, tilesDroppedByCell, verticesFed,
                      columnsUpdated, columnsPruned,
                      nSamples, triCount);
     }

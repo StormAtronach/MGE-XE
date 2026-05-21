@@ -110,6 +110,7 @@ struct ConfigurationStruct {
     bool UseOcclusionCulling;  // reuse msoc.dll's CPU occlusion mask for distant statics
     int OcclusionHysteresisFrames;  // consecutive OCCLUDED frames before a static actually culls
     float OcclusionSphereInflate;   // per-instance sphere/OBB radius scale for verdict stability
+    int OcclusionTerrainMaxCells;   // horizon-occluder terrain cap: drop land tiles farther than N cells from the player (O(1) cell-distance test)
     bool LogDistantPipeline;        // gate per-frame diagnostic loglines + phase-timer reports + Numpad-5 mask dump
     bool UseSceneGraphSnapshot;     // enable MGE-side per-frame scene-graph walk (drives the texture-light variant of FFE)
     bool UseAsyncSceneGraphWalk;    // sub-flag: run the scene-graph walk on a worker thread; main signals at onFrameReady and returns immediately. Snapshot is one frame stale. Default off; on hides the ~350µs walk from the main-thread frame budget.

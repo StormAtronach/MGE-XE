@@ -118,6 +118,10 @@ public:
     struct LandMeshCache {
         std::vector<D3DXVECTOR3>   positions;   // POSITION float3 only; UVs discarded
         std::vector<std::uint32_t> indices;     // promoted to uint32 uniformly
+        // Owning cell (world-space centroid / kCellSize), computed once at
+        // capture. Lets the occluder pass cap tiles by O(1) cell distance
+        // instead of re-deriving membership from the ROAM geometry per frame.
+        int cellX = 0, cellY = 0;
     };
     static std::unordered_map<IDirect3DVertexBuffer9*, LandMeshCache> landMeshes;
 
